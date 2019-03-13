@@ -44,7 +44,7 @@ def get_valid_disease_nodes(num=100):
 
 def _make_node_maps(valid_nodes):
     node_maps = defaultdict(dict)
-    for mode, node_set in valid_nodes.iteritems():
+    for mode, node_set in valid_nodes.items():
         for i, node in enumerate(node_set):
             node_maps[mode][node] = i
     return node_maps
@@ -66,10 +66,10 @@ def load():
 
     used_nodes = defaultdict(set)
     edges = defaultdict(set)
-    for mode in relations.keys():
+    for mode in list(relations.keys()):
          for rel in relations[mode]:
             relation = ((mode, rel[1], rel[0]))
-            print relation
+            print(relation)
             reverse = False
             if rel[1] == "0":
                 filename = _get_miner_data_file((mode, rel[0]))
@@ -99,10 +99,10 @@ def load():
                     used_nodes[mode].add(node1)
                     used_nodes[rel[0]].add(node2)
     node_maps = _make_node_maps(used_nodes)
-    for mode, used_set in used_nodes.iteritems():
-        print mode, len(used_set)
-    for relation, count in edges.iteritems():
-        print relation, len(count)
+    for mode, used_set in used_nodes.items():
+        print(mode, len(used_set))
+    for relation, count in edges.items():
+        print(relation, len(count))
     return relations, adj_lists, node_maps
 
 if __name__ == "__main__":

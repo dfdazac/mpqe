@@ -119,7 +119,7 @@ class PoolAggregator(nn.Module):
         self.features = features
         self.feat_dims = feature_dims
         self.pool_matrix = {}
-        for mode, feat_dim in self.feat_dims.iteritems():
+        for mode, feat_dim in self.feat_dims.items():
             self.pool_matrix[mode] = nn.Parameter(torch.FloatTensor(feat_dim, feat_dim))
             init.xavier_uniform(self.pool_matrix[mode])
             self.register_parameter(mode+"_pool", self.pool_matrix[mode])
@@ -174,7 +174,7 @@ class FastPoolAggregator(nn.Module):
         self.features = features
         self.feat_dims = feature_dims
         self.pool_matrix = {}
-        for mode, feat_dim in self.feat_dims.iteritems():
+        for mode, feat_dim in self.feat_dims.items():
             self.pool_matrix[mode] = nn.Parameter(torch.FloatTensor(feat_dim, feat_dim))
             init.xavier_uniform(self.pool_matrix[mode])
             self.register_parameter(mode+"_pool", self.pool_matrix[mode])

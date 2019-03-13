@@ -1,5 +1,5 @@
 from collections import defaultdict
-import cPickle as pickle
+import pickle as pickle
 from multiprocessing import Process
 from netquery.graph import Query
 
@@ -45,13 +45,13 @@ def sample_clean_test(graph_loader, data_dir):
     val_queries_2 = test_graph.sample_test_queries(train_graph, ["2-chain", "2-inter"], 10, 900)
     val_queries_2.extend(test_graph.sample_test_queries(train_graph, ["2-chain", "2-inter"], 100, 1000))
     val_queries_2 = list(set(val_queries_2)-set(test_queries_2))
-    print len(val_queries_2)
+    print(len(val_queries_2))
     test_queries_3 = test_graph.sample_test_queries(train_graph, ["3-chain", "3-inter", "3-inter_chain", "3-chain_inter"], 9000, 1)
     test_queries_3.extend(test_graph.sample_test_queries(train_graph, ["3-chain", "3-inter", "3-inter_chain", "3-chain_inter"], 1000, 1000))
     val_queries_3 = test_graph.sample_test_queries(train_graph, ["3-chain", "3-inter", "3-inter_chain", "3-chain_inter"], 900, 1)
     val_queries_3.extend(test_graph.sample_test_queries(train_graph, ["3-chain", "3-inter", "3-inter_chain", "3-chain_inter"], 100, 1000))
     val_queries_3 = list(set(val_queries_3)-set(test_queries_3))
-    print len(val_queries_3)
+    print(len(val_queries_3))
     pickle.dump([q.serialize() for q in test_queries_2], open(data_dir + "/test_queries_2-newclean.pkl", "wb"), protocol=pickle.HIGHEST_PROTOCOL)
     pickle.dump([q.serialize() for q in test_queries_3], open(data_dir + "/test_queries_3-newclean.pkl", "wb"), protocol=pickle.HIGHEST_PROTOCOL)
     pickle.dump([q.serialize() for q in val_queries_2], open(data_dir + "/val_queries_2-newclean.pkl", "wb"), protocol=pickle.HIGHEST_PROTOCOL)
@@ -67,22 +67,22 @@ def clean_test(train_queries, test_queries):
 def parallel_sample_worker(pid, num_samples, graph, data_dir, is_test, test_edges):
     if not is_test:
         graph.remove_edges([(q.target_node, q.formula.rels[0], q.anchor_nodes[0]) for q in test_edges])
-    print "Running worker", pid
+    print("Running worker", pid)
     queries_2 = graph.sample_queries(2, num_samples, 100 if is_test else 1, verbose=True)
     queries_3 = graph.sample_queries(3, num_samples, 100 if is_test else 1, verbose=True)
-    print "Done running worker, now saving data", pid
+    print("Done running worker, now saving data", pid)
     pickle.dump([q.serialize() for q in queries_2], open(data_dir + "/queries_2-{:d}.pkl".format(pid), "wb"), protocol=pickle.HIGHEST_PROTOCOL)
     pickle.dump([q.serialize() for q in queries_3], open(data_dir + "/queries_3-{:d}.pkl".format(pid), "wb"), protocol=pickle.HIGHEST_PROTOCOL)
 
 def parallel_sample(graph, num_workers, samples_per_worker, data_dir, test=False, start_ind=None):
     if test:
-        print "Loading test/val data.."
+        print("Loading test/val data..")
         test_edges = load_queries(data_dir + "/test_edges.pkl")
         val_edges = load_queries(data_dir + "/val_edges.pkl")
     else:
         test_edges = []
         val_edges = []
-    proc_range = range(num_workers) if start_ind is None else range(start_ind, num_workers+start_ind)
+    proc_range = list(range(num_workers)) if start_ind is None else list(range(start_ind, num_workers+start_ind))
     procs = [Process(target=parallel_sample_worker, args=[i, samples_per_worker, graph, data_dir, test, val_edges+test_edges]) for i in proc_range]
     for p in procs:
         p.start()

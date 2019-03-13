@@ -1,4 +1,4 @@
-from Queue import Empty
+from queue import Empty
 from multiprocessing import Queue, Process
 import time, random
 
@@ -10,7 +10,7 @@ def worker(pid, queue, in_format, out_format):
             index = queue.get(block=False)
         except Empty:
             break
-        print "Proc", pid, "starting", index
+        print("Proc", pid, "starting", index)
         with open(in_format.format(index=index)) as in_fp:
             with open(out_format.format(index=index), "w") as out_fp:
                 in_fp.readline()
@@ -22,7 +22,7 @@ def worker(pid, queue, in_format, out_format):
                     day = int(date_info[2])
                     if day <= 5:
                         out_fp.write(line)
-        print "Proc", pid, "finished", index
+        print("Proc", pid, "finished", index)
 
 def run_parallel(num_procs, in_format, out_format, index_range):
     queue = Queue()
@@ -37,4 +37,4 @@ def run_parallel(num_procs, in_format, out_format, index_range):
 if __name__ == "__main__":
     run_parallel(10, "/dfs/scratch0/dataset/20180122-Reddit/data/stanford_comment_data/stanford_comment_data{index:012d}.csv",
             "/dfs/scratch0/nqe-reddit-new/comment_data/{index:03d}.csv",
-            range(500))
+            list(range(500)))

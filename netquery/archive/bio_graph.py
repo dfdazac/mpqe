@@ -29,7 +29,7 @@ def _get_data_file(relation):
 
 def _make_node_maps(valid_nodes):
     node_maps = defaultdict(dict)
-    for mode, node_set in valid_nodes.iteritems():
+    for mode, node_set in valid_nodes.items():
         for i, node in enumerate(node_set):
             node_maps[mode][node] = i
     return node_maps
@@ -66,7 +66,7 @@ def load_small(num_genes=1000, feature_dim=10):
     adj_lists = make_adj_lists(relations)
     valid_nodes = defaultdict(set)
     used_nodes = defaultdict(set)
-    valid_nodes["Gene"] = set(np.random.choice(range(100000), size=num_genes))
+    valid_nodes["Gene"] = set(np.random.choice(list(range(100000)), size=num_genes))
     valid_edges = {}
     for mode in relations:
         for rel in relations[mode]:
@@ -86,7 +86,7 @@ def load_small(num_genes=1000, feature_dim=10):
         for rel in relations[mode]:
             relation = ((mode, rel[1], rel[0]))
             filename = _get_data_file((mode, rel[0]))
-            print relation
+            print(relation)
             if filename is None:
                 filename = _get_data_file((rel[0], mode))
                 reverse = True
@@ -115,8 +115,8 @@ def load_small(num_genes=1000, feature_dim=10):
                         used_nodes[mode].add(node1)
                         used_nodes[rel[0]].add(node2)
     node_maps = _make_node_maps(used_nodes)
-    for mode, used_set in used_nodes.iteritems():
-        print mode, len(used_set)
+    for mode, used_set in used_nodes.items():
+        print(mode, len(used_set))
     return relations, adj_lists, node_maps
 
 if __name__ == "__main__":

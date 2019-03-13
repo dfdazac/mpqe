@@ -1,6 +1,6 @@
 import numpy as np
 from collections import defaultdict, Counter
-import cPickle as pickle
+import pickle as pickle
 
 from gensim.models.word2vec import Word2Vec
 
@@ -28,12 +28,12 @@ def load_comments(filename, valid_days, w2v, post_ids):
                     continue
                 comment_id = len(comment_ids)
                 comment_ids[info[3]] = comment_id
-    print len(comment_ids), "valid comments"
+    print(len(comment_ids), "valid comments")
     comment_feats = []
     with open(filename) as fp:
         for i, line in enumerate(fp):
             if i % 1000 == 0:
-                print "Done comment", i
+                print("Done comment", i)
  
             info = line.strip().split(",")
             if not int(info[0].split("-")[-1].split()[0]) in valid_days:
@@ -54,13 +54,13 @@ def load_comments(filename, valid_days, w2v, post_ids):
                 text = ",".join(info[4:-2])
             else:
                 text = info[4]
-            tokenized = tokenizer(unicode(text, errors="ignore"))
+            tokenized = tokenizer(str(text, errors="ignore"))
             word_vecs = [w2v.wv[w.lower_] for w in tokenized if w.lower_ in w2v.wv]
             if len(word_vecs) == 0:
                 word_vecs = [np.zeros(100,)]
             comment_feats.append(np.mean(word_vecs, axis=0))
     
-    print len(post_belongs_to), "comment to post edges"
+    print(len(post_belongs_to), "comment to post edges")
     return comment_ids, replied_to, post_belongs_to, sub_belongs_to, made_by, np.stack(comment_feats)
 
 def load_posts(filename, valid_days, w2v, sub_limit=None):
@@ -77,14 +77,14 @@ def load_posts(filename, valid_days, w2v, sub_limit=None):
         for i, line in enumerate(fp):
             info = line.split(",")
             subs[info[2]] += 1
-    subs = set(random.sample([sub for sub, count in subs.iteritems() if count >= 10], sub_limit))
-    print subs
+    subs = set(random.sample([sub for sub, count in subs.items() if count >= 10], sub_limit))
+    print(subs)
     return
 
     with open(filename) as fp:
         for i, line in enumerate(fp):
             if i % 1000 == 0:
-                print "Done post", i
+                print("Done post", i)
 
             info = line.split(",")
             if not int(info[0].split("-")[-1].split()[0]) in valid_days:
@@ -97,7 +97,7 @@ def load_posts(filename, valid_days, w2v, sub_limit=None):
             made_by[post_id] = info[1]
             post_type[post_id] = type_map[info[4]]
             text = ". ".join(info[-3:])
-            tokenized = tokenizer(unicode(text, errors="ignore"))
+            tokenized = tokenizer(str(text, errors="ignore"))
             word_vecs = [w2v.wv[w.lower_] for w in tokenized if w.lower_ in w2v.wv]
             if len(word_vecs) == 0:
                 word_vecs = [np.zeros(100,)]
@@ -140,18 +140,18 @@ def load_votes(filename, valid_days, comments, posts, user_ids):
     return adj_lists
 
 def load_graph(info_dir, embed_dim=16):
-    print "Loading adjacency info..."
+    print("Loading adjacency info...")
     adj_lists = pickle.load(open(info_dir + "/adj_lists.pkl"))
     relations = pickle.load(open(info_dir + "/rels.pkl"))
-    print "Loading feature data.."
+    print("Loading feature data..")
     post_feats = np.load(info_dir + "/post_feats.npy")
     post_feats = np.concatenate([np.zeros((1,100)), post_feats])
     comment_feats = np.load(info_dir + "/comment_feats.npy")
     comment_feats = np.concatenate([np.zeros((1,100)), comment_feats])
 
 
-    num_users = len(set([id for rel, adj in adj_lists.iteritems() for id in adj if rel[0] == "user"]))
-    num_communities = len(set([id for rel, adj in adj_lists.iteritems() for id in adj if rel[0] == "community"]))
+    num_users = len(set([id for rel, adj in adj_lists.items() for id in adj if rel[0] == "user"]))
+    num_communities = len(set([id for rel, adj in adj_lists.items() for id in adj if rel[0] == "community"]))
 
     feature_modules = {
         "comment" : nn.Embedding(comment_feats.shape[0], comment_feats.shape[1]), 
@@ -165,7 +165,7 @@ def load_graph(info_dir, embed_dim=16):
         feature_modules[mode].weight.data.normal_(0, 1./embed_dim)
     features = lambda nodes, mode : feature_modules[mode](
             torch.autograd.Variable(torch.LongTensor(nodes)+1))
-    feature_dims = {mode : embed.weight.size()[1] for mode, embed in feature_modules.iteritems()}
+    feature_dims = {mode : embed.weight.size()[1] for mode, embed in feature_modules.items()}
     graph = Graph(features, feature_dims, relations, adj_lists)
     return graph, feature_modules
 
@@ -186,34 +186,34 @@ def build_graph(fn, include_days):
             "type" : [("post", "is_type")],
             }
     adj_lists = {}
-    for mode, rels in relations.iteritems():
+    for mode, rels in relations.items():
         for rel in rels:
             adj_lists[(mode, rel[-1], rel[0])] = defaultdict(list)
 
     sub_ids = {}
     user_ids = {}
-    for post, sub in test_post_info[1].iteritems():
+    for post, sub in test_post_info[1].items():
         if not sub in sub_ids:
             sub_ids[sub] = len(sub_ids)
         sub_id = sub_ids[sub]
         adj_lists[("post", "belong", "community")][post].append(sub_id)
         adj_lists[("community", "belong", "post")][sub_id].append(post)
-    for post, user in test_post_info[2].iteritems():
+    for post, user in test_post_info[2].items():
         if not user in user_ids:
             user_ids[user] = len(user_ids)
         user_id = user_ids[user]
         adj_lists[("user", "make", "post")][user_id].append(post)
         adj_lists[("post", "make", "user")][post].append(user_id)
-    for post, post_type in test_post_info[3].iteritems():
+    for post, post_type in test_post_info[3].items():
         adj_lists[("post", "is_type", "type")][post].append(post_type)
         adj_lists[("type", "is_type", "post")][post_type].append(post)
-    for comment1, comment2 in test_comment_info[1].iteritems():
+    for comment1, comment2 in test_comment_info[1].items():
         adj_lists[("comment", "reply", "comment")][comment1].append(comment2)
         adj_lists[("comment", "reply", "comment")][comment2].append(comment1)
-    for comment, post in test_comment_info[2].iteritems():
+    for comment, post in test_comment_info[2].items():
         adj_lists[("comment", "reply", "post")][comment].append(post)
         adj_lists[("post", "reply", "comment")][post].append(comment)
-    for comment, user in test_comment_info[4].iteritems():
+    for comment, user in test_comment_info[4].items():
         if not user in user_ids:
             user_ids[user] = len(user_ids)
         user_id = user_ids[user]

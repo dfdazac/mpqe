@@ -23,7 +23,7 @@ def evaluate_metapath_auc(test_metapaths, graph, enc_dec, batch_size=512):
     predictions = []
     labels = []
     for rels in test_metapaths:
-        print "Testing on", rels
+        print("Testing on", rels)
         if rels[0] == rels[1]:
             continue
         rels_pos_metapaths = test_metapaths[rels]
@@ -64,7 +64,7 @@ def evaluate_edge_auc(test_edges, graph, enc_dec, batch_size=512):
     predictions = []
     labels = []
     for rel in test_edges:
-        print "Testing on", rel
+        print("Testing on", rel)
         node_set = set(graph.adj_lists[_reverse_relation(rel)].keys())
         rel_pos_edges = test_edges[rel]
         rel_neg_edges = [(e[0],np.random.choice(list(node_set 
@@ -82,7 +82,7 @@ def evaluate_edge_mrr(test_edges, graph, enc_dec, negative=100):
     np.random.seed(0)
     mrrs = []
     for i, test_edge in enumerate(test_edges): 
-        neg_edges = zip(*[graph.sample_negative_edge(test_edge[2]) for _ in range(negative)])
+        neg_edges = list(zip(*[graph.sample_negative_edge(test_edge[2]) for _ in range(negative)]))
         scores = enc_dec.forward([test_edge[0]]+list(neg_edges[0]), 
                 [test_edge[1]]+list(neg_edges[1]), [test_edge[2]]).data.cpu().numpy()
         mrrs.append(1./sp.stats.rankdata(-1*scores)[0])
@@ -119,13 +119,13 @@ def train(feature_dim, lr, model, batch_size, max_batches, tol, max_path_len, cu
     del adj_lists[('disease', '0', 'disease')]
     for rel1 in relations:
         for rel2  in relations[rel1]:
-            print rel1, rel2, len(adj_lists[(rel1, rel2[1], rel2[0])])
+            print(rel1, rel2, len(adj_lists[(rel1, rel2[1], rel2[0])]))
     for mode in node_maps:
         node_maps[mode][-1] = len(node_maps[mode])
     feature_dims = {mode : feature_dim for mode in relations}
     feature_modules = {mode : nn.Embedding(len(node_maps[mode]), 
         feature_dim) for mode in relations}
-    for feature_module in feature_modules.values():
+    for feature_module in list(feature_modules.values()):
         feature_module.weight.data.normal_(0, 1./np.sqrt(feature_dim))
 
     if cuda:
@@ -141,14 +141,14 @@ def train(feature_dim, lr, model, batch_size, max_batches, tol, max_path_len, cu
     # cancer_pos_ints, cancer_neg_ints = graph.create_intersections_byrels(cancer_chains)
 
     metapaths = graph.get_all_metapaths_byrel()
-    train_metapaths = {rel:metapath_list[:int(0.9*len(metapath_list))] for rel, metapath_list in metapaths.iteritems()}
-    test_metapaths = {rel:metapath_list[int(0.9*len(metapath_list)):] for rel, metapath_list in metapaths.iteritems()}
+    train_metapaths = {rel:metapath_list[:int(0.9*len(metapath_list))] for rel, metapath_list in metapaths.items()}
+    test_metapaths = {rel:metapath_list[int(0.9*len(metapath_list)):] for rel, metapath_list in metapaths.items()}
 
     
     edges = graph.get_all_edges_byrel()
-    train_edges = {rel:edge_list[:int(0.9*len(edge_list))] for rel, edge_list in edges.iteritems()}
-    test_edges = {rel:edge_list[int(0.9*len(edge_list)):] for rel, edge_list in edges.iteritems()}
-    graph.remove_edges([e for edge_list in test_edges.values() for e in edge_list])
+    train_edges = {rel:edge_list[:int(0.9*len(edge_list))] for rel, edge_list in edges.items()}
+    test_edges = {rel:edge_list[int(0.9*len(edge_list)):] for rel, edge_list in edges.items()}
+    graph.remove_edges([e for edge_list in list(test_edges.values()) for e in edge_list])
 
     # for simplicity the embedding and hidden dimensions are equal
     out_dims = {mode:feature_dim for mode in graph.relations}
@@ -181,7 +181,7 @@ def train(feature_dim, lr, model, batch_size, max_batches, tol, max_path_len, cu
         optimizer = optim.Adam(enc_dec.parameters(), lr=lr)
 
     start = time.time()
-    print "{:d} training edges".format(sum([len(rel_edges) for rel_edges in train_edges.values()]))
+    print("{:d} training edges".format(sum([len(rel_edges) for rel_edges in list(train_edges.values())])))
     losses = []
     ema_loss = None
     
@@ -205,21 +205,21 @@ def train(feature_dim, lr, model, batch_size, max_batches, tol, max_path_len, cu
         loss.backward()
         optimizer.step()
         if i % 100 == 0:
-            print i, ema_loss
+            print(i, ema_loss)
         if i > 2000 and i % 100 == 0:
             conv = np.mean(losses[i-2000:i-1000]) - np.mean(losses[i-1000:i]) 
-            print "conv", conv
+            print("conv", conv)
             if conv < tol:
                 break
     old_edge_auc = evaluate_edge_auc(test_edges, graph, enc_dec)
-    print "MRR:", old_edge_auc
+    print("MRR:", old_edge_auc)
     old_edge_loss = evaluate_edge_margin(test_edges, graph, enc_dec)
 
     old_path_loss = evaluate_metapath_margin(test_metapaths, graph, enc_dec)
     old_path_auc = evaluate_metapath_auc(test_metapaths, graph, enc_dec, batch_size=batch_size)
 
-    print "Metapath auc:", old_path_auc
-    print "Metapath margin: ", old_path_loss
+    print("Metapath auc:", old_path_auc)
+    print("Metapath margin: ", old_path_loss)
 
     ema_loss = None
     if opt == "sgd":
@@ -249,14 +249,14 @@ def train(feature_dim, lr, model, batch_size, max_batches, tol, max_path_len, cu
         loss.backward()
         optimizer.step()
         if i % 100 == 0:
-            print i, ema_loss
+            print(i, ema_loss)
         if i > 2000 and i % 100 == 0:
             conv = np.mean(losses[i-2000:i-1000]) - np.mean(losses[i-1000:i]) 
-            print "conv", conv
+            print("conv", conv)
             if conv < tol:
                 break
         if i % 5000 == 0:
-            print "MRR:", evaluate_edge_auc(test_edges, graph, enc_dec)
+            print("MRR:", evaluate_edge_auc(test_edges, graph, enc_dec))
 
     total = time.time() - start
     test_auc = evaluate_edge_auc(test_edges, graph, enc_dec)
@@ -268,13 +268,13 @@ def train(feature_dim, lr, model, batch_size, max_batches, tol, max_path_len, cu
         writer = csv.writer(csvfile)
         writer.writerow([str(lr), str(batch_size), str(total), str(i), str(total/batch_size/float(i)), str(old_path_auc), str(old_edge_loss), str(test_auc), str(test_loss), str(ema_loss), str(conv), str(old_path_loss), str(old_path_auc), str(path_loss), str(path_auc)]) 
     
-    print "Time:", total
-    print "Converged after:", i
-    print "Per example:", total/batch_size/float(i)
-    print "MRR:", test_auc
-    print "Loss:", test_loss
-    print "Metapath auc:", path_auc
-    print "Metapath margin: ", path_loss
+    print("Time:", total)
+    print("Converged after:", i)
+    print("Per example:", total/batch_size/float(i))
+    print("MRR:", test_auc)
+    print("Loss:", test_loss)
+    print("Metapath auc:", path_auc)
+    print("Metapath margin: ", path_loss)
 
 if __name__ == '__main__':
     parser = ArgumentParser()

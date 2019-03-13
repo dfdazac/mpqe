@@ -19,7 +19,7 @@ def evaluate_edge_auc(test_edges, graph, enc_dec, batch_size=512):
     predictions = []
     labels = []
     for rel in test_edges:
-        print "Testing on", rel
+        print("Testing on", rel)
         node_set = set(graph.adj_lists[rel].keys())
         rel_pos_edges = test_edges[rel]
         rel_neg_edges = [(np.random.choice(list(node_set 
@@ -38,7 +38,7 @@ def evaluate_edge_mrr(test_edges, graph, enc_dec, negative=100):
     np.random.seed(0)
     mrrs = []
     for i, test_edge in enumerate(test_edges): 
-        neg_edges = zip(*[graph.sample_negative_edge(test_edge[2]) for _ in range(negative)])
+        neg_edges = list(zip(*[graph.sample_negative_edge(test_edge[2]) for _ in range(negative)]))
         scores = enc_dec.forward([test_edge[0]]+list(neg_edges[0]), 
                 [test_edge[1]]+list(neg_edges[1]), [test_edge[2]]).data.cpu().numpy()
         mrrs.append(1./sp.stats.rankdata(-1*scores)[0])
@@ -152,13 +152,13 @@ def train(feature_dim, lr, model, batch_size, max_batches, tol, max_path_len):
     del adj_lists[('disease', '0', 'disease')]
     for rel1 in relations:
         for rel2  in relations[rel1]:
-            print rel1, rel2, len(adj_lists[(rel1, rel2[1], rel2[0])])
+            print(rel1, rel2, len(adj_lists[(rel1, rel2[1], rel2[0])]))
     for mode in node_maps:
         node_maps[mode][-1] = len(node_maps[mode])
     feature_dims = {mode : feature_dim for mode in relations}
     feature_modules = {mode : nn.EmbeddingBag(len(node_maps[mode]), 
         feature_dim) for mode in relations}
-    for feature_module in feature_modules.values():
+    for feature_module in list(feature_modules.values()):
         feature_module.weight.data.normal_(0, 1./np.sqrt(feature_dim))
     cuda = True
     if cuda:
@@ -174,9 +174,9 @@ def train(feature_dim, lr, model, batch_size, max_batches, tol, max_path_len):
 
     graph = Graph(features, feature_dims, relations, adj_lists)
     edges = graph.get_all_edges_byrel()
-    train_edges = {rel:edge_list[:int(0.9*len(edge_list))] for rel, edge_list in edges.iteritems()}
-    test_edges = {rel:edge_list[int(0.9*len(edge_list)):] for rel, edge_list in edges.iteritems()}
-    graph.remove_edges([e for edge_list in test_edges.values() for e in edge_list])
+    train_edges = {rel:edge_list[:int(0.9*len(edge_list))] for rel, edge_list in edges.items()}
+    test_edges = {rel:edge_list[int(0.9*len(edge_list)):] for rel, edge_list in edges.items()}
+    graph.remove_edges([e for edge_list in list(test_edges.values()) for e in edge_list])
 
     direct_enc = DirectEncoder(graph.features, feature_modules)
     dec = BilinearPathDecoder(graph.relations, feature_dims)
@@ -186,7 +186,7 @@ def train(feature_dim, lr, model, batch_size, max_batches, tol, max_path_len):
     optimizer = optim.SGD(enc_dec.parameters(), lr=0.5, momentum=0.000)
 
     start = time.time()
-    print "{:d} training edges".format(sum([len(rel_edges) for rel_edges in train_edges.values()]))
+    print("{:d} training edges".format(sum([len(rel_edges) for rel_edges in list(train_edges.values())])))
     batch_size = 512
     num_batches = 20000
     tol = 0.0001
@@ -211,13 +211,13 @@ def train(feature_dim, lr, model, batch_size, max_batches, tol, max_path_len):
         loss.backward()
         optimizer.step()
         if i % 100 == 0:
-            print i, ema_loss
+            print(i, ema_loss)
         if i > 2000 and i % 100 == 0:
             conv = np.mean(losses[i-2000:i-1000]) - np.mean(losses[i-1000:i]) 
-            print "conv", conv
+            print("conv", conv)
             if conv < tol:
                 break
-    print "MRR:", evaluate_edge_auc(test_edges, graph, enc_dec)
+    print("MRR:", evaluate_edge_auc(test_edges, graph, enc_dec))
 
     batch_size = 512
     num_batches = 100000
@@ -225,7 +225,7 @@ def train(feature_dim, lr, model, batch_size, max_batches, tol, max_path_len):
     optimizer = optim.SGD(enc_dec.parameters(), lr=0.5, momentum=0.000)
     for i in range(num_batches):
         rels = graph.sample_metapath()
-        nodes1, nodes2 = zip(*[graph.sample_path_with_rels(rels) for _ in range(batch_size)])
+        nodes1, nodes2 = list(zip(*[graph.sample_path_with_rels(rels) for _ in range(batch_size)]))
         
         optimizer.zero_grad()
         loss = enc_dec.margin_loss(nodes1, 
@@ -238,15 +238,15 @@ def train(feature_dim, lr, model, batch_size, max_batches, tol, max_path_len):
         loss.backward()
         optimizer.step()
         if i % 100 == 0:
-            print i, ema_loss
+            print(i, ema_loss)
         if i % 5000 == 0:
-            print "MRR:", evaluate_edge_auc(test_edges, graph, enc_dec)
+            print("MRR:", evaluate_edge_auc(test_edges, graph, enc_dec))
  
     total = time.time() - start
-    print "Time:", total
-    print "Converged after:", i
-    print "Per example:", total/batch_size/float(i)
-    print "MRR:", evaluate_edge_auc(test_edges, graph, enc_dec)
+    print("Time:", total)
+    print("Converged after:", i)
+    print("Per example:", total/batch_size/float(i))
+    print("MRR:", evaluate_edge_auc(test_edges, graph, enc_dec))
 
 if __name__ == '__main__':
     parser = ArgumentParser()

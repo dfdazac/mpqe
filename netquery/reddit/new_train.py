@@ -26,16 +26,16 @@ parser.add_argument("--inter_decoder", type=str, default="mean")
 parser.add_argument("--opt", type=str, default="adam")
 args = parser.parse_args()
 
-print "Loading graph data.."
+print("Loading graph data..")
 graph, feature_modules = load_graph(args.data_dir, args.embed_dim, cuda=args.cuda)
 out_dims = {mode:args.embed_dim for mode in graph.relations}
 
-print "Loading edge data.."
+print("Loading edge data..")
 train_queries = load_queries_by_formula(args.data_dir + "/train_edges.pkl")
 val_queries = load_test_queries_by_formula(args.data_dir + "/val_edges-split.pkl") 
 test_queries = load_test_queries_by_formula(args.data_dir + "/test_edges-split.pkl")
 
-print "Loading query data.."
+print("Loading query data..")
 for i in range(2,4):
     train_queries.update(load_queries_by_formula(args.data_dir + "/train_queries_{:d}.pkl".format(i)))
     i_val_queries = load_test_queries_by_formula(args.data_dir + "/val_queries_{:d}-clean.pkl".format(i))
@@ -55,9 +55,9 @@ if args.cuda:
     enc_dec.cuda()
 
 if args.opt == "sgd":
-    optimizer = optim.SGD(filter(lambda p : p.requires_grad, enc_dec.parameters()), lr=args.lr, momentum=0)
+    optimizer = optim.SGD([p for p in enc_dec.parameters() if p.requires_grad], lr=args.lr, momentum=0)
 elif args.opt == "adam":
-    optimizer = optim.Adam(filter(lambda p : p.requires_grad, enc_dec.parameters()), lr=args.lr)
+    optimizer = optim.Adam([p for p in enc_dec.parameters() if p.requires_grad], lr=args.lr)
     
 log_file = args.log_dir + "/{data:s}-{depth:d}-{embed_dim:d}-{lr:f}-{decoder:s}-{inter_decoder:s}.log".format(
         data=args.data_dir.strip().split("/")[-1],
@@ -66,7 +66,7 @@ log_file = args.log_dir + "/{data:s}-{depth:d}-{embed_dim:d}-{lr:f}-{decoder:s}-
         lr=args.lr,
         decoder=args.decoder,
         inter_decoder=args.inter_decoder)
-print log_file
+print(log_file)
 model_file = args.model_dir + "/{data:s}-{depth:d}-{embed_dim:d}-{lr:f}-{decoder:s}-{inter_decoder:s}.log".format(
         data=args.data_dir.strip().split("/")[-1],
         depth=args.depth,

@@ -23,7 +23,7 @@ parser.add_argument("--inter_decoder", type=str, default="mean")
 parser.add_argument("--opt", type=str, default="adam")
 args = parser.parse_args()
 
-print "Loading graph data.."
+print("Loading graph data..")
 graph, feature_modules = load_graph(args.data_dir, args.embed_dim, cuda=args.cuda)
 out_dims = {mode:args.embed_dim for mode in graph.relations}
 
@@ -51,12 +51,12 @@ model_file = args.model_dir + "/{data:s}-{depth:d}-{embed_dim:d}-{lr:f}-{decoder
         inter_decoder=args.inter_decoder)
 logger = setup_logging(log_file)
 enc_dec.load_state_dict(torch.load(model_file))
-print "Loading edge data.."
+print("Loading edge data..")
 train_queries = load_queries_by_formula(args.data_dir + "/train_edges.pkl")
 val_queries = load_test_queries_by_formula(args.data_dir + "/val_edges-split.pkl")
 test_queries = load_test_queries_by_formula(args.data_dir + "/test_edges-split.pkl")
 
-print "Loading query data.."
+print("Loading query data..")
 for i in range(2,4):
     train_queries.update(load_queries_by_formula(args.data_dir + "/train_queries_{:d}.pkl".format(i)))
     i_val_queries = load_test_queries_by_formula(args.data_dir + "/val_queries_{:d}-newclean.pkl".format(i))
@@ -67,5 +67,5 @@ for i in range(2,4):
     test_queries["full_neg"].update(i_test_queries["full_neg"])
 
 
-optimizer = optim.Adam(filter(lambda p : p.requires_grad, enc_dec.parameters()), lr=args.lr)
+optimizer = optim.Adam([p for p in enc_dec.parameters() if p.requires_grad], lr=args.lr)
 run_train(enc_dec, optimizer, train_queries, val_queries, test_queries, logger, max_iter=1)

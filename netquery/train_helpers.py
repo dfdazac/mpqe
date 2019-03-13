@@ -1,5 +1,5 @@
 import numpy as np
-from utils import eval_auc_queries, eval_perc_queries
+from .utils import eval_auc_queries, eval_perc_queries
 import torch
 
 def check_conv(vals, window=2, tol=1e-6):
@@ -19,7 +19,7 @@ def update_loss(loss, losses, ema_loss, ema_alpha=0.01):
 def run_eval(model, queries, iteration, logger, by_type=False):
     vals = {}
     def _print_by_rel(rel_aucs, logger):
-        for rels, auc in rel_aucs.iteritems():
+        for rels, auc in rel_aucs.items():
             logger.info(str(rels) + "\t" + str(auc))
     for query_type in queries["one_neg"]:
         auc, rel_aucs = eval_auc_queries(queries["one_neg"][query_type], model)
@@ -45,7 +45,7 @@ def run_train(model, optimizer, train_queries, val_queries, test_queries, logger
     vals = []
     losses = []
     conv_test = None
-    for i in xrange(max_iter):
+    for i in range(max_iter):
         
         optimizer.zero_grad()
         loss = run_batch(train_queries["1-chain"], model, i, batch_size)
@@ -53,7 +53,7 @@ def run_train(model, optimizer, train_queries, val_queries, test_queries, logger
             logger.info("Edge converged at iteration {:d}".format(i-1))
             logger.info("Testing at edge conv...")
             conv_test = run_eval(model, test_queries, i, logger)
-            conv_test = np.mean(conv_test.values())
+            conv_test = np.mean(list(conv_test.values()))
             edge_conv = True
             losses = []
             ema_loss = None
@@ -84,20 +84,20 @@ def run_train(model, optimizer, train_queries, val_queries, test_queries, logger
         if i >= val_every and i % val_every == 0:
             v = run_eval(model, val_queries, i, logger)
             if edge_conv:
-                vals.append(np.mean(v.values()))
+                vals.append(np.mean(list(v.values())))
             else:
                 vals.append(v["1-chain"])
     
     v = run_eval(model, test_queries, i, logger)
-    logger.info("Test macro-averaged val: {:f}".format(np.mean(v.values())))
-    logger.info("Improvement from edge conv: {:f}".format((np.mean(v.values())-conv_test)/conv_test))
+    logger.info("Test macro-averaged val: {:f}".format(np.mean(list(v.values()))))
+    logger.info("Improvement from edge conv: {:f}".format((np.mean(list(v.values()))-conv_test)/conv_test))
 
 def run_batch(train_queries, enc_dec, iter_count, batch_size, hard_negatives=False):
-    num_queries = [float(len(queries)) for queries in train_queries.values()]
+    num_queries = [float(len(queries)) for queries in list(train_queries.values())]
     denom = float(sum(num_queries))
     formula_index = np.argmax(np.random.multinomial(1, 
             np.array(num_queries)/denom))
-    formula = train_queries.keys()[formula_index]
+    formula = list(train_queries.keys())[formula_index]
     n = len(train_queries[formula])
     start = (iter_count * batch_size) % n
     end = min(((iter_count+1) * batch_size) % n, n)

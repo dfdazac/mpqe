@@ -6,7 +6,7 @@ from sklearn.metrics import roc_auc_score
 from netquery.decoders import BilinearMetapathDecoder, TransEMetapathDecoder, BilinearDiagMetapathDecoder, SetIntersection, SimpleSetIntersection
 from netquery.encoders import DirectEncoder, Encoder
 from netquery.aggregators import MeanAggregator
-import cPickle as pickle
+import pickle as pickle
 import logging
 import random
 
@@ -47,14 +47,14 @@ def eval_auc_queries(test_queries, enc_dec, batch_size=1000, hard_negatives=Fals
             batch_queries = formula_queries[offset:max_index]
             if hard_negatives:
                 lengths = [1 for j in range(offset, max_index)]
-                negatives = [random.choice(formula_queries[j].hard_neg_samples) for j in xrange(offset, max_index)]
+                negatives = [random.choice(formula_queries[j].hard_neg_samples) for j in range(offset, max_index)]
             else:
                 lengths = [1 for j in range(offset, max_index)]
-                negatives = [random.choice(formula_queries[j].neg_samples) for j  in xrange(offset, max_index)]
+                negatives = [random.choice(formula_queries[j].neg_samples) for j  in range(offset, max_index)]
             offset += batch_size
 
-            formula_labels.extend([1 for _ in xrange(len(lengths))])
-            formula_labels.extend([0 for _ in xrange(len(negatives))])
+            formula_labels.extend([1 for _ in range(len(lengths))])
+            formula_labels.extend([0 for _ in range(len(negatives))])
             batch_scores = enc_dec.forward(formula, 
                     batch_queries+[b for i, b in enumerate(batch_queries) for _ in range(lengths[i])], 
                     [q.target_node for q in batch_queries] + negatives)

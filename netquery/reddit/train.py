@@ -46,9 +46,9 @@ if args.cuda:
     enc_dec.cuda()
 
 if args.opt == "sgd":
-    optimizer = optim.SGD(filter(lambda p : p.requires_grad, enc_dec.parameters()), lr=args.lr, momentum=0)
+    optimizer = optim.SGD([p for p in enc_dec.parameters() if p.requires_grad], lr=args.lr, momentum=0)
 elif args.opt == "adam":
-    optimizer = optim.Adam(filter(lambda p : p.requires_grad, enc_dec.parameters()), lr=args.lr)
+    optimizer = optim.Adam([p for p in enc_dec.parameters() if p.requires_grad], lr=args.lr)
     
 log_file = args.log_dir + "/{data:s}-{depth:d}-{embed_dim:d}-{lr:f}-{decoder:s}-{inter_decoder:s}.log".format(
         data=args.data_dir.strip().split("/")[-1],
@@ -57,7 +57,7 @@ log_file = args.log_dir + "/{data:s}-{depth:d}-{embed_dim:d}-{lr:f}-{decoder:s}-
         lr=args.lr,
         decoder=args.decoder,
         inter_decoder=args.inter_decoder)
-print log_file
+print(log_file)
 model_file = args.model_dir + "/{data:s}-{depth:d}-{embed_dim:d}-{lr:f}-{decoder:s}-{inter_decoder:s}.log".format(
         data=args.data_dir.strip().split("/")[-1],
         depth=args.depth,

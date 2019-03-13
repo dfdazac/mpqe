@@ -1,4 +1,4 @@
-import cPickle as pickle
+import pickle as pickle
 import torch
 from collections import OrderedDict, defaultdict
 from multiprocessing import Process
@@ -10,7 +10,7 @@ from netquery.graph import Graph, Query, _reverse_edge
 
 def load_graph(data_dir, embed_dim):
     rels, adj_lists, node_maps = pickle.load(open(data_dir+"/graph_data.pkl", "rb"))
-    node_maps = {m : {n : i for i, n in enumerate(id_list)} for m, id_list in node_maps.iteritems()}
+    node_maps = {m : {n : i for i, n in enumerate(id_list)} for m, id_list in node_maps.items()}
     for m in node_maps:
         node_maps[m][-1] = -1
     feature_dims = {m : embed_dim for m in rels}
@@ -24,12 +24,12 @@ def load_graph(data_dir, embed_dim):
 
 def sample_new_clean(data_dir):
     graph_loader = lambda : load_graph(data_dir, 10)[0]
-    sample_clean_test(graph_loader, data_dir) 
+    sample_clean_test(graph_loader, data_dir)
 
 def clean_test():
     test_edges = pickle.load(open("/dfs/scratch0/nqe-bio/test_edges.pkl", "rb"))
-    val_edges = pickle.load(open("/dfs/scratch0/nqe-bio/val_edges.pkl", "rb"))  
-    deleted_edges = set([q[0][1] for q in test_edges] + [_reverse_edge(q[0][1]) for q in test_edges] + 
+    val_edges = pickle.load(open("/dfs/scratch0/nqe-bio/val_edges.pkl", "rb"))
+    deleted_edges = set([q[0][1] for q in test_edges] + [_reverse_edge(q[0][1]) for q in test_edges] +
                 [q[0][1] for q in val_edges] + [_reverse_edge(q[0][1]) for q in val_edges])
 
     for i in range(2,4):
@@ -39,26 +39,26 @@ def clean_test():
             else:
                 to_keep = 10000
             test_queries = load_queries_by_type("/dfs/scratch0/nqe-bio/{:s}_queries_{:d}-split.pkl".format(kind, i), keep_graph=True)
-            print "Loaded", i, kind
+            print("Loaded", i, kind)
             for query_type in test_queries:
                 test_queries[query_type] = [q for q in test_queries[query_type] if len(q.get_edges().intersection(deleted_edges)) > 0]
                 test_queries[query_type] = test_queries[query_type][:to_keep]
-            test_queries = [q.serialize() for queries in test_queries.values() for q in queries]
+            test_queries = [q.serialize() for queries in list(test_queries.values()) for q in queries]
             pickle.dump(test_queries, open("/dfs/scratch0/nqe-bio/{:s}_queries_{:d}-clean.pkl".format(kind, i), "wb"), protocol=pickle.HIGHEST_PROTOCOL)
-            print "Finished", i, kind
-        
+            print("Finished", i, kind)
+
 
 
 def make_train_test_edge_data(data_dir):
-    print "Loading graph..."
+    print("Loading graph...")
     graph, _, _ = load_graph(data_dir, 10)
-    print "Getting all edges..."
+    print("Getting all edges...")
     edges = graph.get_all_edges()
     split_point = int(0.1*len(edges))
     val_test_edges = edges[:split_point]
-    print "Getting negative samples..."
+    print("Getting negative samples...")
     val_test_edge_negsamples = [graph.get_negative_edge_samples(e, 100) for e in val_test_edges]
-    print "Making and storing test queries."
+    print("Making and storing test queries.")
     val_test_edge_queries = [Query(("1-chain", val_test_edges[i]), val_test_edge_negsamples[i], None, 100) for i in range(split_point)]
     val_split_point = int(0.1*len(val_test_edge_queries))
     val_queries = val_test_edge_queries[:val_split_point]
@@ -66,9 +66,9 @@ def make_train_test_edge_data(data_dir):
     pickle.dump([q.serialize() for q in val_queries], open(data_dir+"/val_edges.pkl", "w"), protocol=pickle.HIGHEST_PROTOCOL)
     pickle.dump([q.serialize() for q in test_queries], open(data_dir+"/test_edges.pkl", "w"), protocol=pickle.HIGHEST_PROTOCOL)
 
-    print "Removing test edges..."
+    print("Removing test edges...")
     graph.remove_edges(val_test_edges)
-    print "Making and storing train queries."
+    print("Making and storing train queries.")
     train_edges = graph.get_all_edges()
     train_queries = [Query(("1-chain", e), None, None) for e in train_edges]
     pickle.dump([q.serialize() for q in train_queries], open(data_dir+"/train_edges.pkl", "w"), protocol=pickle.HIGHEST_PROTOCOL)
@@ -76,9 +76,9 @@ def make_train_test_edge_data(data_dir):
 def _discard_negatives(file_name, small_prop=0.9):
     queries = pickle.load(open(file_name, "rb"))
 #    queries = [q if random.random() > small_prop else (q[0],[random.choice(tuple(q[1]))], None if q[2] is None else [random.choice(tuple(q[2]))]) for q in queries]
-    queries = [q if random.random() > small_prop else (q[0],[random.choice(list(q[1]))], None if q[2] is None else [random.choice(list(q[2]))]) for q in queries] 
+    queries = [q if random.random() > small_prop else (q[0],[random.choice(list(q[1]))], None if q[2] is None else [random.choice(list(q[2]))]) for q in queries]
     pickle.dump(queries, open(file_name.split(".")[0] + "-split.pkl", "wb"), protocol=pickle.HIGHEST_PROTOCOL)
-    print "Finished", file_name
+    print("Finished", file_name)
 
 def discard_negatives(data_dir):
     _discard_negatives(data_dir + "/val_edges.pkl")

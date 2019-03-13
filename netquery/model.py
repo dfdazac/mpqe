@@ -46,7 +46,7 @@ class MetapathEncoderDecoder(nn.Module):
         Maximizes relationaship scores for true pairs vs negative samples.
         """
         affs = self.forward(nodes1, nodes2, rels)
-        neg_nodes = [random.randint(1,len(self.graph.adj_lists[_reverse_relation[rels[-1]]])-1) for _ in xrange(len(nodes1))]
+        neg_nodes = [random.randint(1,len(self.graph.adj_lists[_reverse_relation[rels[-1]]])-1) for _ in range(len(nodes1))]
         neg_affs = self.forward(nodes1, neg_nodes,
             rels)
         margin = 1 - (affs - neg_affs)

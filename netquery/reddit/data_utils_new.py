@@ -1,6 +1,6 @@
 import numpy as np
 from collections import defaultdict, Counter, OrderedDict
-import cPickle as pickle
+import pickle as pickle
 from multiprocessing import Process
 import os
 
@@ -21,7 +21,7 @@ def load_comments(filename, valid_days,  post_ids, user_ids):
     with open(filename) as fp:
         for i, line in enumerate(fp):
             if i % 1000 == 0:
-                print "Done comment", i
+                print("Done comment", i)
  
             info = line.strip().split(",")
             if not int(info[0].split("-")[-1].split()[0]) in valid_days:
@@ -49,7 +49,7 @@ def clean_words(post_words, word_counts, min_count=1):
             return None
     for post in post_words:
         post_words[post] = set([_get_id(w) for w in post_words[post] if _get_id(w) != None])
-    print "Kept", len(word_map), "words"
+    print("Kept", len(word_map), "words")
     return post_words
 
 def load_posts(filename, valid_days, w2v, sub_limit=None, subs_set=None):
@@ -67,15 +67,15 @@ def load_posts(filename, valid_days, w2v, sub_limit=None, subs_set=None):
             subs[info[2]] += 1
     if not subs_set is None: 
         subs = set([sub for sub in subs if sub.lower() in subs_set])
-        print "Kept", len(subs), "subs"
+        print("Kept", len(subs), "subs")
     elif not sub_limit is None:
-        subs = set(random.sample([sub for sub, count in subs.iteritems() if count >= 10], sub_limit))
-        print "Kept", len(subs), "subs"
+        subs = set(random.sample([sub for sub, count in subs.items() if count >= 10], sub_limit))
+        print("Kept", len(subs), "subs")
 
     with open(filename) as fp:
         for i, line in enumerate(fp):
             if i % 1000 == 0:
-                print "Done post", i
+                print("Done post", i)
 
             info = line.split(",")
             if not int(info[0].split("-")[-1].split()[0]) in valid_days:
@@ -87,7 +87,7 @@ def load_posts(filename, valid_days, w2v, sub_limit=None, subs_set=None):
             sub_belongs_to[post_id] = info[2]
             made_by[post_id] = info[1]
             text = ". ".join(info[-3:])
-            tokenized = tokenizer(unicode(text, errors="ignore"))
+            tokenized = tokenizer(str(text, errors="ignore"))
             words = set([w.lower for w in tokenized if w.lower_])
             post_feats[post_id] = words
             word_dict.update(words)
@@ -141,14 +141,14 @@ def load_subscriptions(user_ids, sub_ids):
 
 
 def load_graph(info_dir, embed_dim=16, cuda=False):
-    print "Loading adjacency info..."
+    print("Loading adjacency info...")
     adj_lists = pickle.load(open(info_dir + "/adj_lists.pkl"))
     relations = pickle.load(open(info_dir + "/rels.pkl"))
     post_words = pickle.load(open(info_dir + "/post_words.pkl"))
 
-    num_users = len(set([id for rel, adj in adj_lists.iteritems() for id in adj if rel[0] == "user"]))
-    num_communities = len(set([id for rel, adj in adj_lists.iteritems() for id in adj if rel[0] == "community"]))
-    num_words = len(set([w for words in post_words.values() for w in words]))
+    num_users = len(set([id for rel, adj in adj_lists.items() for id in adj if rel[0] == "user"]))
+    num_communities = len(set([id for rel, adj in adj_lists.items() for id in adj if rel[0] == "community"]))
+    num_words = len(set([w for words in list(post_words.values()) for w in words]))
     post_words = {post : torch.LongTensor([w for w in post_words[post]]) for post in post_words}
 
     feature_modules = {
@@ -177,7 +177,7 @@ def load_graph(info_dir, embed_dim=16, cuda=False):
                 return feature_modules[mode](torch.autograd.Variable(torch.cat([post_words[post] for post in nodes])).cuda(),
                         torch.autograd.Variable(torch.LongTensor(offsets)).cuda())
 
-    feature_dims = {mode : embed.weight.size()[1] for mode, embed in feature_modules.iteritems()}
+    feature_dims = {mode : embed.weight.size()[1] for mode, embed in feature_modules.items()}
     graph = Graph(_feature_func, feature_dims, relations, adj_lists)
     return graph, feature_modules
 
@@ -196,34 +196,34 @@ def build_graph(fn, include_days, sub_limit=None, subs_set=None):
             "community" : [("post", "belong"), ("user", "subscribe")],
             }
     adj_lists = {}
-    for mode, rels in relations.iteritems():
+    for mode, rels in relations.items():
         for rel in rels:
             adj_lists[(mode, rel[-1], rel[0])] = defaultdict(set)
 
     sub_ids = {}
     user_ids = {}
-    for post, sub in test_post_info[1].iteritems():
+    for post, sub in test_post_info[1].items():
         if not sub in sub_ids:
             sub_ids[sub] = len(sub_ids)
         sub_id = sub_ids[sub]
         adj_lists[("post", "belong", "community")][post].add(sub_id)
         adj_lists[("community", "belong", "post")][sub_id].add(post)
-    for post, user in test_post_info[2].iteritems():
+    for post, user in test_post_info[2].items():
         if not user in user_ids:
             user_ids[user] = len(user_ids)
         user_id = user_ids[user]
         adj_lists[("user", "make", "post")][user_id].add(post)
         adj_lists[("post", "make", "user")][post].add(user_id)
 
-    print "Loading comments.."
+    print("Loading comments..")
     comment_adjs = load_comments("/dfs/scratch0/nqe-reddit-new/comment_data/"+fn, include_days, test_post_info[0], user_ids)
     adj_lists.update(comment_adjs)
 
-    print "Loading subscriptions"
+    print("Loading subscriptions")
     subscrip_adjs = load_subscriptions(user_ids, sub_ids)
     adj_lists.update(subscrip_adjs)
 
-    print "Loading votes..."
+    print("Loading votes...")
     vote_adjs =  load_votes("/dfs/scratch0/nqe-reddit-new/vote_data/"+fn, include_days, 
             test_post_info[0], user_ids)
     adj_lists.update(vote_adjs)
@@ -234,15 +234,15 @@ def build_graph(fn, include_days, sub_limit=None, subs_set=None):
     pickle.dump(test_post_info[-1], open("/dfs/scratch0/nqe-reddit-new/new_graph/post_words.pkl", "wb"), protocol=pickle.HIGHEST_PROTOCOL) 
 
 def make_train_test_edge_data(data_dir):
-    print "Loading graph..."
+    print("Loading graph...")
     graph, _ = load_graph(data_dir, 10)
-    print "Getting all edges..."
+    print("Getting all edges...")
     edges = graph.get_all_edges()
     split_point = int(0.1*len(edges))
     val_test_edges = edges[:split_point]
-    print "Getting negative samples..."
+    print("Getting negative samples...")
     val_test_edge_negsamples = [graph.get_negative_edge_samples(e, 100) for e in val_test_edges]
-    print "Making and storing test queries."
+    print("Making and storing test queries.")
     val_test_edge_queries = [Query(("1-chain", val_test_edges[i]), val_test_edge_negsamples[i], None, 100, keep_graph=True) for i in range(split_point)]
     val_split_point = int(0.1*len(val_test_edge_queries))
     val_queries = val_test_edge_queries[:val_split_point]
@@ -250,9 +250,9 @@ def make_train_test_edge_data(data_dir):
     pickle.dump([q.serialize() for q in val_queries], open(data_dir+"/val_edges.pkl", "w"), protocol=pickle.HIGHEST_PROTOCOL)
     pickle.dump([q.serialize() for q in test_queries], open(data_dir+"/test_edges.pkl", "w"), protocol=pickle.HIGHEST_PROTOCOL)
 
-    print "Removing test edges..."
+    print("Removing test edges...")
     graph.remove_edges(val_test_edges)
-    print "Making and storing train queries."
+    print("Making and storing train queries.")
     train_edges = graph.get_all_edges()
     train_queries = [Query(("1-chain", e), None, None, keep_graph=True) for e in train_edges]
     pickle.dump([q.serialize() for q in train_queries], open(data_dir+"/train_edges.pkl", "w"), protocol=pickle.HIGHEST_PROTOCOL)
@@ -262,7 +262,7 @@ def _discard_negatives(file_name, small_prop=0.9):
 #    queries = [q if random.random() > small_prop else (q[0],[random.choice(tuple(q[1]))], None if q[2] is None else [random.choice(tuple(q[2]))]) for q in queries]
     queries = [q if random.random() > small_prop else (q[0],[random.choice(list(q[1]))], None if q[2] is None else [random.choice(list(q[2]))]) for q in queries] 
     pickle.dump(queries, open(file_name.split(".")[0] + "-split.pkl", "wb"), protocol=pickle.HIGHEST_PROTOCOL)
-    print "Finished", file_name
+    print("Finished", file_name)
 
 def discard_negatives(data_dir):
     _discard_negatives(data_dir + "/val_edges.pkl")
@@ -284,13 +284,13 @@ def clean_test(data_dir):
             else:
                 to_keep = 10000
             test_queries = load_queries_by_type(data_dir + "/{:s}_queries_{:d}-split.pkl".format(kind, i), keep_graph=True)
-            print "Loaded", i, kind
+            print("Loaded", i, kind)
             for query_type in test_queries:
                 test_queries[query_type] = [q for q in test_queries[query_type] if len(q.get_edges().intersection(deleted_edges)) > 0]
                 test_queries[query_type] = test_queries[query_type][:to_keep]
-            test_queries = [q.serialize() for queries in test_queries.values() for q in queries]
+            test_queries = [q.serialize() for queries in list(test_queries.values()) for q in queries]
             pickle.dump(test_queries, open(data_dir + "/{:s}_queries_{:d}-clean.pkl".format(kind, i), "wb"), protocol=pickle.HIGHEST_PROTOCOL)
-            print "Finished", i, kind
+            print("Finished", i, kind)
  
 def sample_new_clean(data_dir):
     graph_loader = lambda : load_graph(data_dir, 10)[0]
@@ -298,13 +298,13 @@ def sample_new_clean(data_dir):
 
 def make_train_test_query_data(data_dir):
     graph, _ = load_graph(data_dir, 10)
-    print "Sampling train queries..."
+    print("Sampling train queries...")
     queries_2, queries_3 = parallel_sample(graph, 80, 10000, data_dir, test=False, start_ind=0)
-    print "Sampling test queries..."
+    print("Sampling test queries...")
     t_queries_2, t_queries_3 = parallel_sample(graph, 20, 5000, data_dir, test=True)
     t_queries_2 = list(set(t_queries_2) - set(queries_2))
     t_queries_3 = list(set(t_queries_3) - set(queries_3))
-    print len(t_queries_2), len(t_queries_3)
+    print(len(t_queries_2), len(t_queries_3))
     pickle.dump([q.serialize() for q in queries_2], open(data_dir + "/train_queries_2.pkl", "wb"), protocol=pickle.HIGHEST_PROTOCOL)
     pickle.dump([q.serialize() for q in queries_3], open(data_dir + "/train_queries_3.pkl", "wb"), protocol=pickle.HIGHEST_PROTOCOL)
     pickle.dump([q.serialize() for q in t_queries_2[10000:]], open(data_dir + "/test_queries_2.pkl", "wb"), protocol=pickle.HIGHEST_PROTOCOL)

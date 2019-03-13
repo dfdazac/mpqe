@@ -22,7 +22,7 @@ def evaluate_edge_margin(test_edges, graph, enc_dec, negative=100):
     Evaluates the margin loss on held out data.
     negative=# of negative samples to use.
     """
-    test_edges = [e for sub_list in test_edges.values() for e in sub_list]
+    test_edges = [e for sub_list in list(test_edges.values()) for e in sub_list]
     np.random.seed(0)
     loss = 0.
     for i, test_edge in enumerate(test_edges):
@@ -38,7 +38,7 @@ def evaluate_edge_auc(test_edges, graph, enc_dec, batch_size=512):
     predictions = []
     labels = []
     for rel in test_edges:
-        print "Testing on", rel
+        print("Testing on", rel)
         node_set = set(graph.adj_lists[rel].keys())
         rel_pos_edges = test_edges[rel]
         rel_neg_edges = [(np.random.choice(list(node_set 
@@ -94,7 +94,7 @@ def train(feature_dim, lr, model, batch_size, max_batches, tol, cuda, results, d
                 Variable(torch.LongTensor([node_maps[mode][node] for node in nodes])))
         
     # give reasonable initialization to features
-    for feature_module in feature_modules.values():
+    for feature_module in list(feature_modules.values()):
         feature_module.weight.data.normal_(0, 1./np.sqrt(feature_dim))
 
     # build the graph
@@ -104,9 +104,9 @@ def train(feature_dim, lr, model, batch_size, max_batches, tol, cuda, results, d
     edges = graph.get_all_edges_byrel()
 
     # seperate into train and test sets
-    train_edges = {rel:edge_list[:int(0.9*len(edge_list))] for rel, edge_list in edges.iteritems()}
-    test_edges = {rel:edge_list[int(0.9*len(edge_list)):] for rel, edge_list in edges.iteritems()}
-    graph.remove_edges([e for edge_list in test_edges.values() for e in edge_list])
+    train_edges = {rel:edge_list[:int(0.9*len(edge_list))] for rel, edge_list in edges.items()}
+    test_edges = {rel:edge_list[int(0.9*len(edge_list)):] for rel, edge_list in edges.items()}
+    graph.remove_edges([e for edge_list in list(test_edges.values()) for e in edge_list])
 
     # for simplicity the embedding and hidden dimensions are equal
     out_dims = {mode:feature_dim for mode in graph.relations}
@@ -143,7 +143,7 @@ def train(feature_dim, lr, model, batch_size, max_batches, tol, cuda, results, d
     # Main training loop
     start = time.time()
     ema_loss = None
-    print "{:d} training edges".format(sum([len(rel_edges) for rel_edges in train_edges.values()]))
+    print("{:d} training edges".format(sum([len(rel_edges) for rel_edges in list(train_edges.values())])))
     losses = []
     for i in range(max_batches):
         rel = graph.sample_relation()
@@ -164,10 +164,10 @@ def train(feature_dim, lr, model, batch_size, max_batches, tol, cuda, results, d
         loss.backward()
         optimizer.step()
         if i % 100 == 0:
-            print i, ema_loss
+            print(i, ema_loss)
         if i > 2000 and i % 100 == 0:
             conv = np.mean(losses[i-2000:i-1000]) - np.mean(losses[i-1000:i]) 
-            print "conv", conv
+            print("conv", conv)
             if conv < tol:
                 break
 
@@ -177,11 +177,11 @@ def train(feature_dim, lr, model, batch_size, max_batches, tol, cuda, results, d
     with open (results, "a") as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow([str(lr), str(batch_size), str(total), str(i), str( total/batch_size/float(i)), str(test_auc), str(test_loss), str(ema_loss), str(conv)]) 
-    print "Time:", total
-    print "Converged after:", i
-    print "Per example:", total/batch_size/float(i)
-    print "AUC:", test_auc
-    print "Loss:", test_loss
+    print("Time:", total)
+    print("Converged after:", i)
+    print("Per example:", total/batch_size/float(i))
+    print("AUC:", test_auc)
+    print("Loss:", test_loss)
 
 if __name__ == '__main__':
     parser = ArgumentParser()

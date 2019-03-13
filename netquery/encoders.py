@@ -22,7 +22,7 @@ class DirectEncoder(nn.Module):
         feature_modules  -- This should be a map from mode -> torch.nn.EmbeddingBag 
         """
         super(DirectEncoder, self).__init__()
-        for name, module in feature_modules.iteritems():
+        for name, module in feature_modules.items():
             self.add_module("feat-"+name, module)
         self.features = features
 
@@ -74,7 +74,7 @@ class Encoder(nn.Module):
         self.adj_lists = adj_lists
         self.relations = relations
         self.aggregator = aggregator
-        for name, module in feature_modules.iteritems():
+        for name, module in feature_modules.items():
             self.add_module("feat-"+name, module)
         if base_model != None:
             self.base_model = base_model
@@ -92,7 +92,7 @@ class Encoder(nn.Module):
         self.self_params = {}
         self.compress_params = {}
         self.lns = {}
-        for mode, feat_dim in self.feat_dims.iteritems():
+        for mode, feat_dim in self.feat_dims.items():
             if self.layer_norm:
                 self.lns[mode] = LayerNorm(out_dims[mode])
                 self.add_module(mode+"_ln", self.lns[mode])

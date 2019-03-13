@@ -45,7 +45,7 @@ def evaluate_metapath_auc(test_metapaths, neg_metapaths, graph, enc_dec, batch_s
         return -1
 
 def evaluate_metapath_margin(test_metapaths, neg_metapaths, graph, enc_dec, negative=100, batch_size=512):
-    test_metapaths = [e for sub_list in test_metapaths.values() for e in sub_list]
+    test_metapaths = [e for sub_list in list(test_metapaths.values()) for e in sub_list]
     np.random.seed(0)
     loss = 0.
     for i, test_metapath in enumerate(test_metapaths): 
@@ -58,9 +58,9 @@ def evaluate_intersect_auc(test_intersects, cancer_neg_ints, graph, enc_dec, run
     predictions = []
     labels = []
     if run_all:
-        sample_rels = test_intersects.keys()
+        sample_rels = list(test_intersects.keys())
     else:
-        sample_rels = np.random.choice(test_intersects.keys(), 100)
+        sample_rels = np.random.choice(list(test_intersects.keys()), 100)
     for rels in sample_rels:    
         rels_pos_ints = test_intersects[rels]
         if len(rels_pos_ints)>0:
@@ -102,9 +102,9 @@ def evaluate_intersect_margin(test_intersects, cancer_neg_ints, graph, enc_dec, 
     loss = 0.
     len_test_intersects = 0
     if run_all:
-        sample_rels = test_intersects.keys()
+        sample_rels = list(test_intersects.keys())
     else:
-        sample_rels = np.random.choice(test_intersects.keys(), 100)
+        sample_rels = np.random.choice(list(test_intersects.keys()), 100)
     for rel in sample_rels:
 	rel_pos_ints = test_intersects[rel]
 	if len(rel_pos_ints)>0:
@@ -177,7 +177,7 @@ def evaluate_edge_auc(test_edges, neg_edges, graph, enc_dec, batch_size=512):
         return -1
 
 def evaluate_edge_margin(test_edges, neg_edges, graph, enc_dec, negative=100, batch_size=512):
-    test_edges = [e for sub_list in test_edges.values() for e in sub_list]
+    test_edges = [e for sub_list in list(test_edges.values()) for e in sub_list]
     np.random.seed(0)
     loss = 0.
     for i, test_edge in enumerate(test_edges): 
@@ -204,13 +204,13 @@ def train(feature_dim, lr_edge, lr_metapath, lr_int, model, batch_size, max_batc
     del adj_lists[('disease', '0', 'disease')]
     for rel1 in relations:
         for rel2  in relations[rel1]:
-            print rel1, rel2, len(adj_lists[(rel1, rel2[1], rel2[0])])
+            print(rel1, rel2, len(adj_lists[(rel1, rel2[1], rel2[0])]))
     for mode in node_maps:
         node_maps[mode][-1] = len(node_maps[mode])
     feature_dims = {mode : feature_dim for mode in relations}
     feature_modules = {mode : nn.Embedding(len(node_maps[mode]), 
         feature_dim) for mode in relations}
-    for feature_module in feature_modules.values():
+    for feature_module in list(feature_modules.values()):
         feature_module.weight.data.normal_(0, 1./feature_dim)
 
     if cuda:
@@ -235,9 +235,9 @@ def train(feature_dim, lr_edge, lr_metapath, lr_int, model, batch_size, max_batc
         elif len(rel) in [2,3]:
             metapaths[rel] = [(node1, entry[-1], rel) for node1 in cancer_chains[rel] for entry in cancer_chains[rel][node1]]
     
-    for edge_list in edges.values():
+    for edge_list in list(edges.values()):
             random.shuffle(edge_list)
-    for metapath_list in metapaths.values():
+    for metapath_list in list(metapaths.values()):
             random.shuffle(metapath_list)
     
     pos_ints = {}
@@ -247,9 +247,9 @@ def train(feature_dim, lr_edge, lr_metapath, lr_int, model, batch_size, max_batc
         else:
             pos_ints[rel] = [(node1, node2, target) for (node1, node2) in cancer_pos_ints[rel] for target in cancer_pos_ints[rel][(node1,node2)]]
     #Get test edges and remove them from the graph
-    train_edges = {rel:edge_list[:int(0.9*len(edge_list))] for rel, edge_list in edges.iteritems()}
-    test_edges = {rel:edge_list[int(0.9*len(edge_list)):] for rel, edge_list in edges.iteritems()}
-    graph.remove_edges([e for edge_list in test_edges.values() for e in edge_list])
+    train_edges = {rel:edge_list[:int(0.9*len(edge_list))] for rel, edge_list in edges.items()}
+    test_edges = {rel:edge_list[int(0.9*len(edge_list)):] for rel, edge_list in edges.items()}
+    graph.remove_edges([e for edge_list in list(test_edges.values()) for e in edge_list])
 
     #Create TRAIN chains and metapaths from the train graph (test edges removed)
     train_cancer_chains, train_cancer_neg_chains = graph.create_chains_byrels()
@@ -305,20 +305,20 @@ def train(feature_dim, lr_edge, lr_metapath, lr_int, model, batch_size, max_batc
             cuda = cuda, aggregator=aggregator)
         dec = get_decoder(graph, enc.out_dims, decoder)
     
-    inter_dec = MinIntersection(feature_dims.keys(), feature_dims, feature_dims)
+    inter_dec = MinIntersection(list(feature_dims.keys()), feature_dims, feature_dims)
     combined_enc_dec = LogCombinedEncoderDecoder(graph, enc, dec, inter_dec)
     if cuda:
         combined_enc_dec.cuda()
     
     
-    print "Checking eval functions"
+    print("Checking eval functions")
     beg_int_auc =  evaluate_intersect_auc(test_ints, cancer_neg_ints, graph, combined_enc_dec, True)
     #beg_int_loss = evaluate_intersect_margin(test_ints, cancer_neg_ints, graph, combined_enc_dec, False)
     beg_path_auc = evaluate_metapath_auc(test_metapaths, cancer_neg_chains, graph, combined_enc_dec, batch_size=batch_size)
     beg_edge_auc = evaluate_edge_auc(test_edges, cancer_neg_chains, graph, combined_enc_dec)
     #beg_edge_loss = evaluate_edge_margin(test_edges, cancer_neg_chains, graph, combined_enc_dec)
     #beg_path_loss = evaluate_metapath_margin(test_metapaths, cancer_neg_chains, graph, combined_enc_dec)
-    print beg_edge_auc, beg_path_auc#, beg_int_auc, beg_edge_loss, beg_path_loss, beg_int_loss
+    print(beg_edge_auc, beg_path_auc)#, beg_int_auc, beg_edge_loss, beg_path_loss, beg_int_loss
     
 
     losses = []
@@ -353,21 +353,21 @@ def train(feature_dim, lr_edge, lr_metapath, lr_int, model, batch_size, max_batc
         torch.nn.utils.clip_grad_norm(combined_enc_dec.parameters(), 0.00001)
         optimizer.step()
         if i % 100 == 0:
-            print i, ema_loss
+            print(i, ema_loss)
         if i > 2000 and i % 100 == 0:
             conv = np.mean(losses[i-2000:i-1000]) - np.mean(losses[i-1000:i]) 
-            print "conv", conv
+            print("conv", conv)
             if conv < tol:
                 break
-    print "After training on edges:"
-    print combined_enc_dec.edge_dec.mats
+    print("After training on edges:")
+    print(combined_enc_dec.edge_dec.mats)
     train1_edge_auc = evaluate_edge_auc(test_edges, cancer_neg_chains, graph, combined_enc_dec)
     #train1_edge_loss = evaluate_edge_margin(test_edges, cancer_neg_chains, graph, combined_enc_dec)
     #train1_path_loss = evaluate_metapath_margin(test_metapaths, cancer_neg_chains, graph, combined_enc_dec)
 #    train1_path_auc = evaluate_metapath_auc(test_metapaths, cancer_neg_chains, graph, combined_enc_dec, batch_size=batch_size)
     train1_int_auc =  evaluate_intersect_auc(test_ints, cancer_neg_ints, graph, combined_enc_dec, True)
     #train1_int_loss = evaluate_intersect_margin(test_ints, cancer_neg_ints, graph, combined_enc_dec, False)
-    print train1_edge_auc, train1_int_auc#, train1_edge_loss, train1_path_loss, train1_int_loss
+    print(train1_edge_auc, train1_int_auc)#, train1_edge_loss, train1_path_loss, train1_int_loss
     
     """ 
     losses = []
@@ -457,17 +457,17 @@ def train(feature_dim, lr_edge, lr_metapath, lr_int, model, batch_size, max_batc
         loss.backward()
         optimizer.step()
         if i % 100 == 0:
-            print i, ema_loss
+            print(i, ema_loss)
         if i > 2000 and i % 100 == 0:
             conv = np.mean(losses[i-2000:i-1000]) - np.mean(losses[i-1000:i]) 
-            print "conv", conv
+            print("conv", conv)
             if conv < tol:
                 break
         if i % 5000 == 0:
-            print "MRR:", evaluate_edge_auc(test_edges, cancer_neg_chains, graph, combined_enc_dec)
-            print "Inersection AUC:", evaluate_intersect_auc(test_ints, cancer_neg_ints, graph, combined_enc_dec, True)
+            print("MRR:", evaluate_edge_auc(test_edges, cancer_neg_chains, graph, combined_enc_dec))
+            print("Inersection AUC:", evaluate_intersect_auc(test_ints, cancer_neg_ints, graph, combined_enc_dec, True))
     
-    print "After training on intersections:"    
+    print("After training on intersections:")    
     train3_edge_auc = evaluate_edge_auc(test_edges, cancer_neg_chains, graph, combined_enc_dec)
 #    train3_edge_loss = evaluate_edge_margin(test_edges, cancer_neg_chains, graph, combined_enc_dec)
     #train3_path_loss = evaluate_metapath_margin(test_metapaths, cancer_neg_chains, graph, combined_enc_dec)
@@ -475,7 +475,7 @@ def train(feature_dim, lr_edge, lr_metapath, lr_int, model, batch_size, max_batc
     train3_int_auc =  evaluate_intersect_auc(test_ints, cancer_neg_ints, graph, combined_enc_dec, True)
     train3_int_auc_train =  evaluate_intersect_auc(train_pos_ints, train_cancer_neg_ints, graph, combined_enc_dec, True)
 #    train3_int_loss = evaluate_intersect_margin(test_ints, cancer_neg_ints, graph, combined_enc_dec, True)
-    print train3_edge_auc, train3_int_auc, train3_int_auc_train#, train3_edge_loss, train3_path_loss, train3_int_loss
+    print(train3_edge_auc, train3_int_auc, train3_int_auc_train)#, train3_edge_loss, train3_path_loss, train3_int_loss
 
     with open (results, "a") as csvfile:
         writer = csv.writer(csvfile)
