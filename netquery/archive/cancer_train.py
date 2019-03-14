@@ -27,7 +27,7 @@ def evaluate_edge_margin(test_edges, graph, enc_dec, negative=100):
     loss = 0.
     for i, test_edge in enumerate(test_edges):
         loss += enc_dec.margin_loss([test_edge[0] for _ in range(negative)],
-                [test_edge[1] for _ in range(negative)], test_edge[2]).data[0]
+                [test_edge[1] for _ in range(negative)], test_edge[2]).item()
     loss /= len(test_edges)
     return loss
 
@@ -147,11 +147,11 @@ def train(feature_dim, lr, model, batch_size, max_batches, tol, cuda, results):
         loss = enc_dec.margin_loss([edge[0] for edge in edges], 
                 [edge[1] for edge in edges], rel)
         graph.add_edges(edges)
-        losses.append(loss.data[0])
+        losses.append(loss.item())
         if ema_loss == None:
-            ema_loss = loss.data[0]
+            ema_loss = loss.item()
         else:
-            ema_loss = 0.99*ema_loss + 0.01*loss.data[0]
+            ema_loss = 0.99*ema_loss + 0.01*loss.item()
         loss.backward()
         optimizer.step()
         if i % 100 == 0:

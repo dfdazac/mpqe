@@ -55,7 +55,7 @@ def evaluate_metapath_margin(test_metapaths, graph, enc_dec, negative=100, batch
 			splits = len(edges) / batch_size + 1
 			for edge_split in np.array_split(edges, splits):
 				loss += enc_dec.margin_loss([e[0] for e in edge_split  for _ in range(negative)],
-		            [e[1] for e in edge_split for _ in range(negative)], rel).data[0]*len(edge_split)
+		            [e[1] for e in edge_split for _ in range(negative)], rel).item()*len(edge_split)
 	len_test_edges = sum([len(test_metapaths[rel]) for rel in test_metapaths])
 	loss /= len_test_edges  
 	return loss
@@ -97,7 +97,7 @@ def evaluate_edge_margin(test_edges, graph, enc_dec, negative=100, batch_size=51
 		splits = len(edges) / batch_size + 1
 		for edge_split in np.array_split(edges, splits):
 			loss += enc_dec.margin_loss([e[0] for e in edge_split  for _ in range(negative)],
-	            [e[1] for e in edge_split for _ in range(negative)], [rel]).data[0]*len(edge_split)
+	            [e[1] for e in edge_split for _ in range(negative)], [rel]).item()*len(edge_split)
 	len_test_edges = sum([len(test_edges[rel]) for rel in test_edges])
 	loss /= len_test_edges
 	return loss
@@ -197,11 +197,11 @@ def train(feature_dim, lr, model, batch_size, max_batches, tol, max_path_len, cu
         loss = enc_dec.margin_loss([edge[0] for edge in edges], 
                 [edge[1] for edge in edges], [rel])
         enc_dec.graph.add_edges(edges)
-        losses.append(loss.data[0])
+        losses.append(loss.item())
         if ema_loss == None:
-            ema_loss = loss.data[0]
+            ema_loss = loss.item()
         else:
-            ema_loss = 0.99*ema_loss + 0.01*loss.data[0]
+            ema_loss = 0.99*ema_loss + 0.01*loss.item()
         loss.backward()
         optimizer.step()
         if i % 100 == 0:
@@ -241,11 +241,11 @@ def train(feature_dim, lr, model, batch_size, max_batches, tol, max_path_len, cu
         optimizer.zero_grad()
         loss = enc_dec.margin_loss(nodes1, 
                 nodes2, rels)
-        losses.append(loss.data[0])
+        losses.append(loss.item())
         if ema_loss == None:
-            ema_loss = loss.data[0]
+            ema_loss = loss.item()
         else:
-            ema_loss = 0.99*ema_loss + 0.01*loss.data[0]
+            ema_loss = 0.99*ema_loss + 0.01*loss.item()
         loss.backward()
         optimizer.step()
         if i % 100 == 0:

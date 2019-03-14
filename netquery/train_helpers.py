@@ -74,7 +74,7 @@ def run_train(model, optimizer, train_queries, val_queries, test_queries, logger
                     logger.info("Fully converged at iteration {:d}".format(i))
                     break
 
-        losses, ema_loss = update_loss(loss.data[0], losses, ema_loss)
+        losses, ema_loss = update_loss(loss.item(), losses, ema_loss)
         loss.backward()
         optimizer.step()
             

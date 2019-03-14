@@ -50,7 +50,7 @@ def evaluate_metapath_margin(test_metapaths, neg_metapaths, graph, enc_dec, nega
     loss = 0.
     for i, test_metapath in enumerate(test_metapaths): 
         loss += enc_dec.margin_loss([test_metapath[0] for _ in range(negative)],
-                [test_metapath[1] for _ in range(negative)], test_metapath[2], "path", [random.choice(neg_metapaths[test_metapath[2]][test_metapath[0]]) for _ in range(negative)]).data[0]
+                [test_metapath[1] for _ in range(negative)], test_metapath[2], "path", [random.choice(neg_metapaths[test_metapath[2]][test_metapath[0]]) for _ in range(negative)]).item()
     loss /= len(test_metapaths)
     return loss
 
@@ -112,13 +112,13 @@ def evaluate_intersect_margin(test_intersects, cancer_neg_ints, graph, enc_dec, 
 	    	for sample in rel_pos_ints:
 	            loss += enc_dec.margin_loss([sample[0] for _ in range(negative)],
                 	[sample[1] for _ in range(negative)], rel, "intersect", [random.choice(cancer_neg_ints[rel][(sample[0],sample[1],sample[2])]) for _ in range(negative)],
-			[sample[3] for _ in range(negative)], [sample[2] for _ in range(negative)]).data[0]
+			[sample[3] for _ in range(negative)], [sample[2] for _ in range(negative)]).item()
 	    	    len_test_intersects += 1
 	    else:
 		for sample in rel_pos_ints:
                     loss += enc_dec.margin_loss([sample[0] for _ in range(negative)],
                         [sample[1] for _ in range(negative)], rel, "intersect", [random.choice(cancer_neg_ints[rel][(sample[0],sample[1])]) for _ in range(negative)],
-                        [sample[2] for _ in range(negative)]).data[0]
+                        [sample[2] for _ in range(negative)]).item()
 		    len_test_intersects += 1
     loss /= len_test_intersects
     return loss
@@ -141,7 +141,7 @@ def evaluate_intersect_margin(test_intersects, cancer_neg_ints, graph, enc_dec, 
                 for sample_split in np.array_split(samples, splits):
                     loss += enc_dec.margin_loss([e[0] for e in sample_split  for _ in range(negative)],
                         [e[1] for e in sample_split for _ in range(negative)], rel, "intersect", [e[4] for e in sample_split  for _ in range(negative)],
-                        [e[3] for e in sample_split for _ in range(negative)], [e[2] for e in sample_split for _ in range(negative)]).data[0]*len(sample_split)
+                        [e[3] for e in sample_split for _ in range(negative)], [e[2] for e in sample_split for _ in range(negative)]).item()*len(sample_split)
 		    len_test_intersects += len(sample_split)
 	    else:
 	    	rel_pos_ints = test_intersects[rel]
@@ -150,7 +150,7 @@ def evaluate_intersect_margin(test_intersects, cancer_neg_ints, graph, enc_dec, 
             	for sample_split in np.array_split(samples, splits):
                     loss += enc_dec.margin_loss([e[0] for e in sample_split  for _ in range(negative)],
                     	[e[1] for e in sample_split for _ in range(negative)], rel, "intersect", [e[3] for e in sample_split  for _ in range(negative)],
-                    	[e[2] for e in sample_split for _ in range(negative)]).data[0]*len(sample_split)
+                    	[e[2] for e in sample_split for _ in range(negative)]).item()*len(sample_split)
 		    len_test_intersects += len(sample_split)
     print loss, len_test_intersects
     loss /= len_test_intersects  
@@ -182,7 +182,7 @@ def evaluate_edge_margin(test_edges, neg_edges, graph, enc_dec, negative=100, ba
     loss = 0.
     for i, test_edge in enumerate(test_edges): 
         loss += enc_dec.margin_loss([test_edge[0] for _ in range(negative)],
-                [test_edge[1] for _ in range(negative)], [test_edge[2]], "path", [random.choice(neg_edges[(test_edge[2],)][test_edge[0]]) for _ in range(negative)]).data[0]
+                [test_edge[1] for _ in range(negative)], [test_edge[2]], "path", [random.choice(neg_edges[(test_edge[2],)][test_edge[0]]) for _ in range(negative)]).item()
     loss /= len(test_edges)
     return loss
 
@@ -344,11 +344,11 @@ def train(feature_dim, lr_edge, lr_metapath, lr_int, model, batch_size, max_batc
         neg_nodes = [random.choice(train_cancer_neg_chains[(rel,)][e[0]]) for e in edges]
         loss = combined_enc_dec.margin_loss([edge[0] for edge in edges], [edge[1] for edge in edges], [rel], "path", neg_nodes)
         #combined_enc_dec.graph.add_edges(edges)
-        losses.append(loss.data[0])
+        losses.append(loss.item())
         if ema_loss == None:
-            ema_loss = loss.data[0]
+            ema_loss = loss.item()
         else:
-            ema_loss = 0.99*ema_loss + 0.01*loss.data[0]
+            ema_loss = 0.99*ema_loss + 0.01*loss.item()
         loss.backward()
         torch.nn.utils.clip_grad_norm(combined_enc_dec.parameters(), 0.00001)
         optimizer.step()
@@ -392,11 +392,11 @@ def train(feature_dim, lr_edge, lr_metapath, lr_int, model, batch_size, max_batc
         neg_nodes = [random.choice(train_cancer_neg_chains[rels][e[0]]) for e in edges]
         optimizer.zero_grad()
         loss = combined_enc_dec.margin_loss(nodes1, nodes2, rels, "path", neg_nodes)
-        losses.append(loss.data[0])
+        losses.append(loss.item())
         if ema_loss == None:
-            ema_loss = loss.data[0]
+            ema_loss = loss.item()
         else:
-            ema_loss = 0.99*ema_loss + 0.01*loss.data[0]
+            ema_loss = 0.99*ema_loss + 0.01*loss.item()
         loss.backward()
         optimizer.step()
         if i % 100 == 0:
@@ -449,11 +449,11 @@ def train(feature_dim, lr_edge, lr_metapath, lr_int, model, batch_size, max_batc
         
         optimizer.zero_grad()
         loss = combined_enc_dec.margin_loss(query_nodes1, query_nodes2, rels, "intersect", neg_nodes, target_nodes, query_nodes3)
-        losses.append(loss.data[0])
+        losses.append(loss.item())
         if ema_loss == None:
-            ema_loss = loss.data[0]
+            ema_loss = loss.item()
         else:
-            ema_loss = 0.99*ema_loss + 0.01*loss.data[0]
+            ema_loss = 0.99*ema_loss + 0.01*loss.item()
         loss.backward()
         optimizer.step()
         if i % 100 == 0:
