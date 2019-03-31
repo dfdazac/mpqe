@@ -61,14 +61,14 @@ if args.opt == "sgd":
 elif args.opt == "adam":
     optimizer = optim.Adam([p for p in enc_dec.parameters() if p.requires_grad], lr=args.lr)
 
-log_file = args.log_dir + "/{data:s}-{depth:d}-{embed_dim:d}-{lr:f}-{decoder:s}-{inter_decoder:s}.log".format(
+log_file = args.log_dir + "/{data:s}{depth:d}-{embed_dim:d}-{lr:f}-{decoder:s}-{inter_decoder:s}.log".format(
         data=args.data_dir.strip().split("/")[-1],
         depth=args.depth,
         embed_dim=args.embed_dim,
         lr=args.lr,
         decoder=args.decoder,
         inter_decoder=args.inter_decoder)
-model_file = args.model_dir + "/{data:s}-{depth:d}-{embed_dim:d}-{lr:f}-{decoder:s}-{inter_decoder:s}.log".format(
+model_file = args.model_dir + "/{data:s}{depth:d}-{embed_dim:d}-{lr:f}-{decoder:s}-{inter_decoder:s}.pt".format(
         data=args.data_dir.strip().split("/")[-1],
         depth=args.depth,
         embed_dim=args.embed_dim,
