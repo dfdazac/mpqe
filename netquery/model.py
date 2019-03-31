@@ -67,15 +67,15 @@ class QueryEncoderDecoder(nn.Module):
         self.graph = graph
         self.cos = nn.CosineSimilarity(dim=0)
 
-    def forward(self, formula, queries, source_nodes):
+    def forward(self, formula, queries, target_nodes):
         if formula.query_type == "1-chain" or formula.query_type == "2-chain" or formula.query_type == "3-chain":
             # a chain is simply a call to the path decoder
             return self.path_dec.forward(
-                    self.enc.forward(source_nodes, formula.target_mode), 
+                    self.enc.forward(target_nodes, formula.target_mode),
                     self.enc.forward([query.anchor_nodes[0] for query in queries], formula.anchor_modes[0]),
                     formula.rels)
         elif formula.query_type == "2-inter" or formula.query_type == "3-inter" or formula.query_type == "3-inter_chain":
-            target_embeds = self.enc(source_nodes, formula.target_mode)
+            target_embeds = self.enc(target_nodes, formula.target_mode)
 
             embeds1 = self.enc([query.anchor_nodes[0] for query in queries], formula.anchor_modes[0])
             embeds1 = self.path_dec.project(embeds1, _reverse_relation(formula.rels[0]))
@@ -97,7 +97,7 @@ class QueryEncoderDecoder(nn.Module):
             scores = self.cos(target_embeds, query_intersection)
             return scores
         elif formula.query_type == "3-chain_inter":
-            target_embeds = self.enc(source_nodes, formula.target_mode)
+            target_embeds = self.enc(target_nodes, formula.target_mode)
 
             embeds1 = self.enc([query.anchor_nodes[0] for query in queries], formula.anchor_modes[0])
             embeds1 = self.path_dec.project(embeds1, _reverse_relation(formula.rels[1][0]))
