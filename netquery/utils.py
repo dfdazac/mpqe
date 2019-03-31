@@ -19,8 +19,7 @@ def cudify(feature_modules, node_maps=None):
        features = lambda nodes, mode : feature_modules[mode](
             torch.autograd.Variable(torch.LongTensor(nodes)+1).cuda())
    else:
-       features = lambda nodes, mode : feature_modules[mode](
-            torch.autograd.Variable(torch.LongTensor([node_maps[mode][n] for n in nodes])+1).cuda())
+       features = lambda nodes, mode : feature_modules[mode](node_maps[nodes].cuda())
    return features
 
 def _get_perc_scores(scores, lengths):

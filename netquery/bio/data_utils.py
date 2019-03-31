@@ -4,21 +4,28 @@ from collections import OrderedDict, defaultdict
 from multiprocessing import Process
 import random
 import json
-from netquery.data_utils import parallel_sample, load_queries_by_type, sample_clean_test
 
+from netquery.data_utils import parallel_sample, load_queries_by_type, sample_clean_test
 from netquery.graph import Graph, Query, _reverse_edge
 
 def load_graph(data_dir, embed_dim):
     rels, adj_lists, node_maps = pickle.load(open(data_dir+"/graph_data.pkl", "rb"))
-    node_maps = {m : {n : i for i, n in enumerate(id_list)} for m, id_list in node_maps.items()}
-    for m in node_maps:
-        node_maps[m][-1] = -1
+    node_mode_counts = {mode: len(node_maps[mode]) for mode in node_maps}
+    num_nodes = sum(node_mode_counts.values())
+
+    new_node_maps = torch.ones(num_nodes + 1, dtype=torch.long).fill_(-1)
+    for m, id_list in node_maps.items():
+        for i, n in enumerate(id_list):
+            assert new_node_maps[n] == -1
+            new_node_maps[n] = i
+
+    node_maps = new_node_maps
     feature_dims = {m : embed_dim for m in rels}
-    feature_modules = {m : torch.nn.Embedding(len(node_maps[m])+1, embed_dim) for m in rels}
+    feature_modules = {m : torch.nn.Embedding(node_mode_counts[m] + 1, embed_dim) for m in rels}
     for mode in rels:
         feature_modules[mode].weight.data.normal_(0, 1./embed_dim)
-    features = lambda nodes, mode : feature_modules[mode](
-            torch.autograd.Variable(torch.LongTensor([node_maps[mode][n] for n in nodes])+1))
+
+    features = lambda nodes, mode: feature_modules[mode](node_maps[nodes])
     graph = Graph(features, feature_dims, rels, adj_lists)
     return graph, feature_modules, node_maps
 
