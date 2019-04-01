@@ -23,6 +23,28 @@ class Formula():
         elif query_type == "3-chain_inter":
             self.anchor_modes = (rels[1][0][-1], rels[1][1][-1])
 
+    @staticmethod
+    def flatten(S):
+        if len(S) == 0:
+            return S
+        if isinstance(S[0], tuple):
+            return Formula.flatten(S[0]) + Formula.flatten(S[1:])
+        return S[:1] + Formula.flatten(S[1:])
+
+    def get_rels(self):
+        flat_rels = Formula.flatten(self.rels)
+        rels = []
+        for i in range(0, len(flat_rels), 3):
+            rels.append(tuple(flat_rels[i:i+3]))
+        return rels
+
+    def get_variable_nodes(self):
+        flat_rels = Formula.flatten(self.rels)
+        variables = []
+        for i in range(0, len(flat_rels), 3):
+            variables.extend([flat_rels[i], flat_rels[i+2]])
+        return variables
+
     def __hash__(self):
          return hash((self.query_type, self.rels))
 
