@@ -187,3 +187,112 @@ class SoftAndEncoderDecoder(nn.Module):
         loss = torch.clamp(loss, min=0)
         loss = loss.mean()
         return loss 
+
+
+from torch_geometric.data import Data, Batch
+
+class RGCNEncoderDecoder(nn.Module):
+    query_edge_indices = {'1-chain': [[0],
+                                      [1]],
+                          '2-chain': [[0, 2],
+                                      [2, 1]],
+                          '3-chain': [[0, 3, 2],
+                                      [3, 2, 1]],
+                          '2-inter': [[0, 1],
+                                      [2, 2]],
+                          '3-inter': [[0, 1, 2],
+                                      [3, 3, 3]],
+                          '3-inter_chain': [[0, 1, 3],
+                                            [2, 3, 2]],
+                          '3-chain_inter': [[0, 1, 3],
+                                            [3, 3, 2]]}
+
+    query_edge_label_idx = {'1-chain': [0],
+                            '2-chain': [1, 0],
+                            '3-chain': [2, 1, 0],
+                            '2-inter': [0, 1],
+                            '3-inter': [0, 1, 2],
+                            '3-inter_chain': [0, 2, 1],
+                            '3-chain_inter': [1, 2, 0]}
+
+    variable_node_idx = {'1-chain': [0],
+                         '2-chain': [0, 2],
+                         '3-chain': [0, 2, 4],
+                         '2-inter': [0],
+                         '3-inter': [0],
+                         '3-chain_inter': [0, 2],
+                         '3-inter_chain': [0, 3]}
+
+    def __init__(self, graph, enc):
+        super(RGCNEncoderDecoder, self).__init__()
+        self.enc = enc
+        self.graph = graph
+        self.cos = nn.CosineSimilarity(dim=0)
+        self.emb_dim = graph.feature_dims[next(iter(graph.feature_dims))]
+        self.mode_embeddings = {}
+        for mode in graph.mode_weights:
+            embeddings = torch.empty(self.emb_dim, dtype=torch.float32)
+            embeddings = embeddings.uniform_().unsqueeze(dim=0)
+            self.mode_embeddings[mode] = nn.Parameter(embeddings)
+            self.register_parameter("emb-" + mode, self.mode_embeddings[mode])
+
+        self.rel_ids = {}
+        id_rel = 0
+        for r1 in graph.relations:
+            for r2 in graph.relations[r1]:
+                rel = (r1, r2[1], r2[0])
+                self.rel_ids[rel] = id_rel
+                id_rel += 1
+
+    def forward(self, formula, queries, target_nodes):
+        batch_size = len(queries)
+        n_anchors = len(formula.anchor_modes)
+
+        x = torch.empty(batch_size, n_anchors, self.emb_dim)
+        # First rows of x contain embeddings of all anchor nodes
+        for i, anchor_mode in enumerate(formula.anchor_modes):
+            anchors = [q.anchor_nodes[i] for q in queries]
+            x[:, i] = self.enc(anchors, anchor_mode).t()
+
+        # The rest of the rows contain generic mode embeddings for variable nodes
+        var_nodes = formula.get_variable_nodes()
+        var_idx = RGCNEncoderDecoder.variable_node_idx[formula.query_type]
+        var_embs = torch.stack([self.mode_embeddings[var_nodes[i]] for i in var_idx], dim=1)
+        x = torch.cat((x, var_embs.expand(batch_size, -1, -1)), dim=1)
+
+        x = x.reshape(-1, self.emb_dim)
+
+        edge_index = RGCNEncoderDecoder.query_edge_indices[formula.query_type]
+        edge_index = torch.tensor(edge_index, dtype=torch.long)
+
+        rels = formula.get_rels()
+        rel_idx = RGCNEncoderDecoder.query_edge_label_idx[formula.query_type]
+        edge_type = [self.rel_ids[_reverse_relation(rels[i])] for i in rel_idx]
+        edge_type = torch.tensor(edge_type, dtype=torch.long)
+
+        # TODO: Add edge type
+        edge_data = Data(edge_index=edge_index)
+        batch = Batch.from_data_list([edge_data for i in range(batch_size)])
+
+        print('phew')
+        # graphs.append(graph)
+        # out = self.rgcn(x, batch.edge_index, batch.edge_type)
+        pass
+
+
+    def margin_loss(self, formula, queries, hard_negatives=False, margin=1):
+        if not "inter" in formula.query_type and hard_negatives:
+            raise Exception("Hard negative examples can only be used with intersection queries")
+        elif hard_negatives:
+            neg_nodes = [random.choice(query.hard_neg_samples) for query in queries]
+        elif formula.query_type == "1-chain":
+            neg_nodes = [random.choice(self.graph.full_lists[formula.target_mode]) for _ in queries]
+        else:
+            neg_nodes = [random.choice(query.neg_samples) for query in queries]
+
+        affs = self.forward(formula, queries, [query.target_node for query in queries])
+        neg_affs = self.forward(formula, queries, neg_nodes)
+        loss = margin - (affs - neg_affs)
+        loss = torch.clamp(loss, min=0)
+        loss = loss.mean()
+        return loss
