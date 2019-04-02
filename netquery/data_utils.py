@@ -1,7 +1,9 @@
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 import pickle as pickle
 from multiprocessing import Process
 from netquery.graph import Query
+from torch.utils.data import Dataset, DataLoader
+import numpy as np
 
 def load_queries(data_file, keep_graph=False):
     raw_info = pickle.load(open(data_file, "rb"))
@@ -96,3 +98,60 @@ def parallel_sample(graph, num_workers, samples_per_worker, data_dir, test=False
         new_queries_3 = load_queries(data_dir+"/queries_3-{:d}.pkl".format(i), keep_graph=True)
         queries_3.extend(new_queries_3)
     return queries_2, queries_3
+
+
+class QueryDataset(Dataset):
+    """A dataset for queries of a specific type, e.g. 1-chain.
+    The dataset contains queries for formulas of different types, e.g.
+    200 queries of type (('protein', '0', 'protein')),
+    500 queries of type (('protein', '0', 'function')).
+    (note that these queries are of type 1-chain).
+
+    Args:
+        queries (dict): maps formulas (graph.Formula) to query instances
+            (list of graph.Query?)
+    """
+    def __init__(self, queries):
+        self.queries = queries
+        self.num_formula_queries = OrderedDict()
+        for form, form_queries in queries.items():
+            self.num_formula_queries[form] = len(form_queries)
+        self.num_queries = sum(self.num_formula_queries.values())
+        self.max_num_queries = max(self.num_formula_queries.values())
+
+    def __len__(self):
+        return self.max_num_queries
+
+    def __getitem__(self, index):
+        return index
+
+    def collate_fn(self, idx_list):
+        # Select a formula type (e.g. ('protein', '0', 'protein'))
+        # with probability proportional to the number of queries of that
+        # formula type
+        counts = np.array(list(self.num_formula_queries.values()))
+        probs = counts / float(self.num_queries)
+        formula_index = np.argmax(np.random.multinomial(1, probs))
+        formula = list(self.num_formula_queries.keys())[formula_index]
+
+        n = self.num_formula_queries[formula]
+        # Assume sorted idx_list
+        min_idx, max_idx = idx_list[0], idx_list[-1]
+
+        start = min_idx % n
+        end = min((max_idx + 1) % n, n)
+        end = n if end <= start else end
+        queries = self.queries[formula][start:end]
+
+        return formula, queries
+
+if __name__ == '__main__':
+    queries = {('protein','0','protein'): ['a' + str(i) for i in range(10)],
+               ('protein', '0', 'function'): ['b' + str(i) for i in range(20)],
+               ('function', '0', 'function'): ['c' + str(i) for i in range(30)]}
+
+    dataset = QueryDataset(queries)
+    loader = DataLoader(dataset, batch_size=4, shuffle=False,
+                        collate_fn=dataset.collate_fn)
+    for i in loader:
+        print(i)
