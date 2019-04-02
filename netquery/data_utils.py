@@ -145,13 +145,32 @@ class QueryDataset(Dataset):
 
         return formula, queries
 
+
+def make_data_iterator(data_loader):
+    iterator = iter(data_loader)
+    while True:
+        try:
+            yield next(iterator)
+        except StopIteration:
+            print('restarting')
+            iterator = iter(data_loader)
+            continue
+
+
+def get_queries_iterator(queries, batch_size):
+    dataset = QueryDataset(queries)
+    loader = DataLoader(dataset, batch_size, shuffle=False,
+                        collate_fn=dataset.collate_fn, num_workers=4)
+    return make_data_iterator(loader)
+
+
 if __name__ == '__main__':
     queries = {('protein','0','protein'): ['a' + str(i) for i in range(10)],
                ('protein', '0', 'function'): ['b' + str(i) for i in range(20)],
                ('function', '0', 'function'): ['c' + str(i) for i in range(30)]}
 
-    dataset = QueryDataset(queries)
-    loader = DataLoader(dataset, batch_size=4, shuffle=False,
-                        collate_fn=dataset.collate_fn)
-    for i in loader:
-        print(i)
+    iterator = get_queries_iterator(queries, batch_size=4)
+
+    for i in range(50):
+        batch = next(iterator)
+        print(batch)
