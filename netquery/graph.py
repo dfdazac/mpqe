@@ -38,7 +38,7 @@ class Formula():
             rels.append(tuple(flat_rels[i:i+3]))
         return rels
 
-    def get_variable_nodes(self):
+    def get_nodes(self):
         flat_rels = Formula.flatten(self.rels)
         variables = []
         for i in range(0, len(flat_rels), 3):

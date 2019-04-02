@@ -275,7 +275,7 @@ class RGCNEncoderDecoder(nn.Module):
             x[:, i] = self.enc(anchors, anchor_mode).t()
 
         # The rest of the rows contain generic mode embeddings for variable nodes
-        var_nodes = formula.get_variable_nodes()
+        var_nodes = formula.get_nodes()
         var_idx = RGCNEncoderDecoder.variable_node_idx[formula.query_type]
         var_embs = torch.stack(
             [self.mode_embeddings[var_nodes[i]] for i in var_idx], dim=1)
