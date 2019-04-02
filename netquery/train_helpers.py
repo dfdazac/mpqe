@@ -1,5 +1,6 @@
 import numpy as np
 from .utils import eval_auc_queries, eval_perc_queries
+from .data_utils import get_queries_iterator
 import torch
 
 def check_conv(vals, window=2, tol=1e-6):
@@ -45,10 +46,17 @@ def run_train(model, optimizer, train_queries, val_queries, test_queries, logger
     vals = []
     losses = []
     conv_test = None
+
+    train_iterators = {}
+    for query_type in train_queries:
+        queries = train_queries[query_type]
+        train_iterators[query_type] = get_queries_iterator(queries, batch_size)
+
     for i in range(max_iter):
         
         optimizer.zero_grad()
-        loss = run_batch(train_queries["1-chain"], model, i, batch_size)
+        #loss = run_batch(train_queries["1-chain"], model, i, batch_size)
+        loss = run_batch_v2(train_iterators['1-chain'], model)
         if not edge_conv and (check_conv(vals) or len(losses) >= max_burn_in):
             logger.info("Edge converged at iteration {:d}".format(i-1))
             logger.info("Testing at edge conv...")
@@ -66,10 +74,13 @@ def run_train(model, optimizer, train_queries, val_queries, test_queries, logger
                 if query_type == "1-chain":
                     continue
                 if "inter" in query_type:
-                    loss += inter_weight*run_batch(train_queries[query_type], model, i, batch_size)
-                    loss += inter_weight*run_batch(train_queries[query_type], model, i, batch_size, hard_negatives=True)
+                    #loss += inter_weight*run_batch(train_queries[query_type], model, i, batch_size)
+                    loss += inter_weight*run_batch_v2(train_iterators[query_type], model)
+                    #loss += inter_weight*run_batch(train_queries[query_type], model, i, batch_size, hard_negatives=True)
+                    loss += inter_weight * run_batch_v2(train_iterators[query_type], model, hard_negatives=True)
                 else:
-                    loss += path_weight*run_batch(train_queries[query_type], model, i, batch_size)
+                    #loss += path_weight*run_batch(train_queries[query_type], model, i, batch_size)
+                    loss += inter_weight * run_batch_v2(train_iterators[query_type], model)
             if check_conv(vals):
                     logger.info("Fully converged at iteration {:d}".format(i))
                     break
@@ -103,5 +114,10 @@ def run_batch(train_queries, enc_dec, iter_count, batch_size, hard_negatives=Fal
     end = min(((iter_count+1) * batch_size) % n, n)
     end = n if end <= start else end
     queries = train_queries[formula][start:end]
+    loss = enc_dec.margin_loss(formula, queries, hard_negatives=hard_negatives)
+    return loss
+
+def run_batch_v2(queries_iterator, enc_dec, hard_negatives=False):
+    formula, queries = next(queries_iterator)
     loss = enc_dec.margin_loss(formula, queries, hard_negatives=hard_negatives)
     return loss
