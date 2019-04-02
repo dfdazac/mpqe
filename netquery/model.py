@@ -247,6 +247,7 @@ class RGCNEncoderDecoder(nn.Module):
                 id_rel += 1
 
         # TODO: hparam num_bases
+        # TODO: hparam num_layers
         self.rgcn = RGCNConv(in_channels=self.emb_dim, out_channels=self.emb_dim,
                              num_relations=len(self.rel_ids), num_bases=10)
 
@@ -263,10 +264,11 @@ class RGCNEncoderDecoder(nn.Module):
         return scores
 
     def get_query_graphs(self, formula, queries):
+        device = next(self.parameters()).device
         batch_size = len(queries)
         n_anchors = len(formula.anchor_modes)
 
-        x = torch.empty(batch_size, n_anchors, self.emb_dim)
+        x = torch.empty(batch_size, n_anchors, self.emb_dim).to(device)
         # First rows of x contain embeddings of all anchor nodes
         for i, anchor_mode in enumerate(formula.anchor_modes):
             anchors = [q.anchor_nodes[i] for q in queries]
@@ -294,9 +296,7 @@ class RGCNEncoderDecoder(nn.Module):
         graph = Batch.from_data_list([edge_data for i in range(batch_size)])
         graph.x = x
 
-        graph.to(next(self.parameters()).device)
-
-        return graph
+        return graph.to(device)
 
     def margin_loss(self, formula, queries, hard_negatives=False, margin=1):
         if not "inter" in formula.query_type and hard_negatives:
