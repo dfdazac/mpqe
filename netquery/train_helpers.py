@@ -50,7 +50,7 @@ def run_train(model, optimizer, train_queries, val_queries, test_queries, logger
     train_iterators = {}
     for query_type in train_queries:
         queries = train_queries[query_type]
-        train_iterators[query_type] = get_queries_iterator(queries, batch_size)
+        train_iterators[query_type] = get_queries_iterator(queries, batch_size, model.graph)
 
     for i in range(max_iter):
         
@@ -118,6 +118,6 @@ def run_batch(train_queries, enc_dec, iter_count, batch_size, hard_negatives=Fal
     return loss
 
 def run_batch_v2(queries_iterator, enc_dec, hard_negatives=False):
-    formula, queries = next(queries_iterator)
-    loss = enc_dec.margin_loss(formula, queries, hard_negatives=hard_negatives)
+    batch = next(queries_iterator)
+    loss = enc_dec.margin_loss(*batch, hard_negatives=hard_negatives)
     return loss
