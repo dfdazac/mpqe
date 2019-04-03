@@ -50,7 +50,7 @@ def run_train(model, optimizer, train_queries, val_queries, test_queries, logger
     train_iterators = {}
     for query_type in train_queries:
         queries = train_queries[query_type]
-        train_iterators[query_type] = get_queries_iterator(queries, batch_size, model.graph)
+        train_iterators[query_type] = get_queries_iterator(queries, batch_size, model)
 
     for i in range(max_iter):
         

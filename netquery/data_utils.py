@@ -191,25 +191,21 @@ class RGCNQueryDataset(QueryDataset):
                          '3-chain_inter': [0, 2],
                          '3-inter_chain': [0, 3]}
 
-    def __init__(self, queries, graph):
+    def __init__(self, queries, enc_dec):
         super(RGCNQueryDataset, self).__init__(queries)
-
-        self.mode_ids = {}
-        mode_id = 0
-        for mode in graph.mode_weights:
-            self.mode_ids[mode] = mode_id
-
-        self.rel_ids = {}
-        id_rel = 0
-        for r1 in graph.relations:
-            for r2 in graph.relations[r1]:
-                rel = (r1, r2[1], r2[0])
-                self.rel_ids[rel] = id_rel
-                id_rel += 1
+        self.mode_ids = enc_dec.mode_ids
+        self.rel_ids = enc_dec.rel_ids
 
     def collate_fn(self, idx_list):
         formula, queries = super(RGCNQueryDataset, self).collate_fn(idx_list)
+        anchor_ids, var_ids, graph = RGCNQueryDataset.get_query_graph(formula,
+                                                                      queries,
+                                                                      self.rel_ids,
+                                                                      self.mode_ids)
+        return formula, queries, anchor_ids, var_ids, graph
 
+    @staticmethod
+    def get_query_graph(formula, queries, rel_ids, mode_ids):
         batch_size = len(queries)
         n_anchors = len(formula.anchor_modes)
 
@@ -222,32 +218,22 @@ class RGCNQueryDataset(QueryDataset):
         # The rest of the rows contain generic mode embeddings for variable nodes
         all_nodes = formula.get_nodes()
         var_idx = RGCNQueryDataset.variable_node_idx[formula.query_type]
-        var_ids = np.array([self.mode_ids[all_nodes[i]] for i in var_idx],
+        var_ids = np.array([mode_ids[all_nodes[i]] for i in var_idx],
                             dtype=np.int)
-        #var_ids = np.tile(var_ids, (batch_size, 1))
-
-        #all_ids = np.concatenate((anchor_ids, var_ids), axis=1)
-
-        #anchor_mask = np.array([True for node in all_nodes])
-        #anchor_mask[n_anchors:] = False
-        #anchor_mask = np.tile(anchor_mask, batch_size)
-        #variable_mask = np.bitwise_not(anchor_mask)
 
         edge_index = RGCNQueryDataset.query_edge_indices[formula.query_type]
         edge_index = torch.tensor(edge_index, dtype=torch.long)
 
         rels = formula.get_rels()
         rel_idx = RGCNQueryDataset.query_edge_label_idx[formula.query_type]
-        edge_type = [self.rel_ids[_reverse_relation(rels[i])] for i in rel_idx]
+        edge_type = [rel_ids[_reverse_relation(rels[i])] for i in rel_idx]
         edge_type = torch.tensor(edge_type, dtype=torch.long)
 
         edge_data = Data(edge_index=edge_index)
         edge_data.edge_type = edge_type
         graph = Batch.from_data_list([edge_data for i in range(batch_size)])
 
-        return (formula,
-                queries,
-                torch.tensor(anchor_ids, dtype=torch.long),
+        return (torch.tensor(anchor_ids, dtype=torch.long),
                 torch.tensor(var_ids, dtype=torch.long),
                 graph)
 
@@ -262,10 +248,10 @@ def make_data_iterator(data_loader):
             continue
 
 
-def get_queries_iterator(queries, batch_size, graph=None):
-    dataset = RGCNQueryDataset(queries, graph)
+def get_queries_iterator(queries, batch_size, enc_dec=None):
+    dataset = RGCNQueryDataset(queries, enc_dec)
     loader = DataLoader(dataset, batch_size, shuffle=False,
-                        collate_fn=dataset.collate_fn, num_workers=4)
+                        collate_fn=dataset.collate_fn, num_workers=1)
     return make_data_iterator(loader)
 
 

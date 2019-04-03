@@ -3,6 +3,7 @@ import torch.nn as nn
 
 import random
 from netquery.graph import _reverse_relation
+from .data_utils import RGCNQueryDataset
 
 EPS = 10e-6
 
@@ -193,51 +194,43 @@ from torch_scatter import scatter_add, scatter_mean, scatter_min, scatter_max, s
 import torch.nn.functional as F
 
 class RGCNEncoderDecoder(nn.Module):
-    query_edge_indices = {'1-chain': [[0],
-                                      [1]],
-                          '2-chain': [[0, 2],
-                                      [2, 1]],
-                          '3-chain': [[0, 3, 2],
-                                      [3, 2, 1]],
-                          '2-inter': [[0, 1],
-                                      [2, 2]],
-                          '3-inter': [[0, 1, 2],
-                                      [3, 3, 3]],
-                          '3-inter_chain': [[0, 1, 3],
-                                            [2, 3, 2]],
-                          '3-chain_inter': [[0, 1, 3],
-                                            [3, 3, 2]]}
-
-    query_edge_label_idx = {'1-chain': [0],
-                            '2-chain': [1, 0],
-                            '3-chain': [2, 1, 0],
-                            '2-inter': [0, 1],
-                            '3-inter': [0, 1, 2],
-                            '3-inter_chain': [0, 2, 1],
-                            '3-chain_inter': [1, 2, 0]}
-
-    variable_node_idx = {'1-chain': [0],
-                         '2-chain': [0, 2],
-                         '3-chain': [0, 2, 4],
-                         '2-inter': [0],
-                         '3-inter': [0],
-                         '3-chain_inter': [0, 2],
-                         '3-inter_chain': [0, 3]}
-
     def __init__(self, graph, enc):
         super(RGCNEncoderDecoder, self).__init__()
         self.enc = enc
         self.graph = graph
-
         self.emb_dim = graph.feature_dims[next(iter(graph.feature_dims))]
         self.mode_embeddings = nn.Embedding(len(graph.mode_weights), self.emb_dim)
+
+        self.mode_ids = {}
+        mode_id = 0
+        for mode in graph.mode_weights:
+            self.mode_ids[mode] = mode_id
+
+        self.rel_ids = {}
+        id_rel = 0
+        for r1 in graph.relations:
+            for r2 in graph.relations[r1]:
+                rel = (r1, r2[1], r2[0])
+                self.rel_ids[rel] = id_rel
+                id_rel += 1
 
         # TODO: hparam num_bases
         # TODO: hparam num_layers
         self.rgcn = RGCNConv(in_channels=self.emb_dim, out_channels=self.emb_dim,
                              num_relations=len(graph.rel_edges), num_bases=10)
 
-    def forward(self, formula, queries, anchor_ids, var_ids, q_graphs, target_nodes):
+    def forward(self, formula, queries, target_nodes,
+                anchor_ids=None, var_ids=None, q_graphs=None):
+
+        if anchor_ids is None or var_ids is None or q_graphs is None:
+            anchor_ids, var_ids, q_graphs = RGCNQueryDataset.get_query_graph(formula,
+                                                                          queries,
+                                                                          self.rel_ids,
+                                                                          self.mode_ids)
+        device = next(self.parameters()).device
+        var_ids = var_ids.to(device)
+        q_graphs = q_graphs.to(device)
+
         batch_size, n_anchors = anchor_ids.shape
         n_vars = var_ids.shape[0]
         num_nodes = n_anchors + n_vars
@@ -258,7 +251,7 @@ class RGCNEncoderDecoder(nn.Module):
 
         return scores
 
-    def margin_loss(self, formula, queries, anchor_ids, var_ids, q_graphs,
+    def margin_loss(self, formula, queries, anchor_ids=None, var_ids=None, q_graphs=None,
                     hard_negatives=False, margin=1):
         if not "inter" in formula.query_type and hard_negatives:
             raise Exception("Hard negative examples can only be used with intersection queries")
@@ -269,14 +262,10 @@ class RGCNEncoderDecoder(nn.Module):
         else:
             neg_nodes = [random.choice(query.neg_samples) for query in queries]
 
-        device = next(self.parameters()).device
-        var_ids = var_ids.to(device)
-        q_graphs = q_graphs.to(device)
-
-        affs = self.forward(formula, queries, anchor_ids, var_ids, q_graphs,
-                            [query.target_node for query in queries])
-        neg_affs = self.forward(formula, queries, anchor_ids, var_ids,
-                                q_graphs, neg_nodes)
+        affs = self.forward(formula, queries, [query.target_node for query in queries],
+                            anchor_ids, var_ids, q_graphs)
+        neg_affs = self.forward(formula, queries, neg_nodes,
+                                anchor_ids, var_ids, q_graphs)
         loss = margin - (affs - neg_affs)
         loss = torch.clamp(loss, min=0)
         loss = loss.mean()
