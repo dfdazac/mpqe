@@ -2,7 +2,9 @@ from collections import defaultdict, OrderedDict
 import pickle as pickle
 from multiprocessing import Process
 from netquery.graph import Query
+import torch
 from torch.utils.data import Dataset, DataLoader
+from .graph import _reverse_relation
 import numpy as np
 
 def load_queries(data_file, keep_graph=False):
@@ -111,7 +113,7 @@ class QueryDataset(Dataset):
         queries (dict): maps formulas (graph.Formula) to query instances
             (list of graph.Query?)
     """
-    def __init__(self, queries):
+    def __init__(self, queries, *args, **kwargs):
         self.queries = queries
         self.num_formula_queries = OrderedDict()
         for form, form_queries in queries.items():
@@ -145,6 +147,110 @@ class QueryDataset(Dataset):
 
         return formula, queries
 
+from torch_geometric.data import Data, Batch
+
+class RGCNQueryDataset(QueryDataset):
+    """A dataset for queries of a specific type, e.g. 1-chain.
+    The dataset contains queries for formulas of different types, e.g.
+    200 queries of type (('protein', '0', 'protein')),
+    500 queries of type (('protein', '0', 'function')).
+    (note that these queries are of type 1-chain).
+
+    Args:
+        queries (dict): maps formulas (graph.Formula) to query instances
+            (list of graph.Query?)
+    """
+    query_edge_indices = {'1-chain': [[0],
+                                      [1]],
+                          '2-chain': [[0, 2],
+                                      [2, 1]],
+                          '3-chain': [[0, 3, 2],
+                                      [3, 2, 1]],
+                          '2-inter': [[0, 1],
+                                      [2, 2]],
+                          '3-inter': [[0, 1, 2],
+                                      [3, 3, 3]],
+                          '3-inter_chain': [[0, 1, 3],
+                                            [2, 3, 2]],
+                          '3-chain_inter': [[0, 1, 3],
+                                            [3, 3, 2]]}
+
+    query_edge_label_idx = {'1-chain': [0],
+                            '2-chain': [1, 0],
+                            '3-chain': [2, 1, 0],
+                            '2-inter': [0, 1],
+                            '3-inter': [0, 1, 2],
+                            '3-inter_chain': [0, 2, 1],
+                            '3-chain_inter': [1, 2, 0]}
+
+    variable_node_idx = {'1-chain': [0],
+                         '2-chain': [0, 2],
+                         '3-chain': [0, 2, 4],
+                         '2-inter': [0],
+                         '3-inter': [0],
+                         '3-chain_inter': [0, 2],
+                         '3-inter_chain': [0, 3]}
+
+    def __init__(self, queries, graph):
+        super(RGCNQueryDataset, self).__init__(queries)
+
+        self.mode_ids = {}
+        mode_id = 0
+        for mode in graph.mode_weights:
+            self.mode_ids[mode] = mode_id
+
+        self.rel_ids = {}
+        id_rel = 0
+        for r1 in graph.relations:
+            for r2 in graph.relations[r1]:
+                rel = (r1, r2[1], r2[0])
+                self.rel_ids[rel] = id_rel
+                id_rel += 1
+
+    def collate_fn(self, idx_list):
+        formula, queries = super(RGCNQueryDataset, self).collate_fn(idx_list)
+
+        batch_size = len(queries)
+        n_anchors = len(formula.anchor_modes)
+
+        anchor_ids = np.empty([batch_size, n_anchors]).astype(np.int)
+        # First rows of x contain embeddings of all anchor nodes
+        for i, anchor_mode in enumerate(formula.anchor_modes):
+            anchors = [q.anchor_nodes[i] for q in queries]
+            anchor_ids[:, i] = anchors
+
+        # The rest of the rows contain generic mode embeddings for variable nodes
+        all_nodes = formula.get_nodes()
+        var_idx = RGCNQueryDataset.variable_node_idx[formula.query_type]
+        var_ids = np.array([self.mode_ids[all_nodes[i]] for i in var_idx],
+                            dtype=np.int)
+        #var_ids = np.tile(var_ids, (batch_size, 1))
+
+        #all_ids = np.concatenate((anchor_ids, var_ids), axis=1)
+
+        #anchor_mask = np.array([True for node in all_nodes])
+        #anchor_mask[n_anchors:] = False
+        #anchor_mask = np.tile(anchor_mask, batch_size)
+        #variable_mask = np.bitwise_not(anchor_mask)
+
+        edge_index = RGCNQueryDataset.query_edge_indices[formula.query_type]
+        edge_index = torch.tensor(edge_index, dtype=torch.long)
+
+        rels = formula.get_rels()
+        rel_idx = RGCNQueryDataset.query_edge_label_idx[formula.query_type]
+        edge_type = [self.rel_ids[_reverse_relation(rels[i])] for i in rel_idx]
+        edge_type = torch.tensor(edge_type, dtype=torch.long)
+
+        edge_data = Data(edge_index=edge_index)
+        edge_data.edge_type = edge_type
+        graph = Batch.from_data_list([edge_data for i in range(batch_size)])
+
+        return (formula,
+                queries,
+                torch.tensor(anchor_ids, dtype=torch.long),
+                torch.tensor(var_ids, dtype=torch.long),
+                graph)
+
 
 def make_data_iterator(data_loader):
     iterator = iter(data_loader)
@@ -152,13 +258,12 @@ def make_data_iterator(data_loader):
         try:
             yield next(iterator)
         except StopIteration:
-            print('restarting')
             iterator = iter(data_loader)
             continue
 
 
-def get_queries_iterator(queries, batch_size):
-    dataset = QueryDataset(queries)
+def get_queries_iterator(queries, batch_size, graph=None):
+    dataset = RGCNQueryDataset(queries, graph)
     loader = DataLoader(dataset, batch_size, shuffle=False,
                         collate_fn=dataset.collate_fn, num_workers=4)
     return make_data_iterator(loader)
