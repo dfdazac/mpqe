@@ -251,7 +251,7 @@ def make_data_iterator(data_loader):
 def get_queries_iterator(queries, batch_size, enc_dec=None):
     dataset = RGCNQueryDataset(queries, enc_dec)
     loader = DataLoader(dataset, batch_size, shuffle=False,
-                        collate_fn=dataset.collate_fn, num_workers=1)
+                        collate_fn=dataset.collate_fn)
     return make_data_iterator(loader)
 
 
