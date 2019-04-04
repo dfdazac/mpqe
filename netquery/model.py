@@ -222,14 +222,17 @@ class RGCNEncoderDecoder(nn.Module):
             self.readout = self.sum_readout
         elif readout == 'max':
             self.readout = self.max_readout
+        elif readout == 'mlp':
+            self.mlp = MLPReadout(self.emb_dim)
+            self.readout = self.mlp
         else:
             raise ValueError(f'Unknown readout function {readout}')
 
-    def sum_readout(self, out, batch_idx):
-        return scatter_add(out, batch_idx, dim=0)
+    def sum_readout(self, embs, batch_idx):
+        return scatter_add(embs, batch_idx, dim=0)
 
-    def max_readout(self, out, batch_idx):
-        return scatter_max(out, batch_idx, dim=0)
+    def max_readout(self, embs, batch_idx):
+        return scatter_max(embs, batch_idx, dim=0)
 
     def forward(self, formula, queries, target_nodes,
                 anchor_ids=None, var_ids=None, q_graphs=None):
@@ -281,3 +284,16 @@ class RGCNEncoderDecoder(nn.Module):
         loss = torch.clamp(loss, min=0)
         loss = loss.mean()
         return loss
+
+
+class MLPReadout(nn.Module):
+    def __init__(self, dim):
+        super(MLPReadout, self).__init__()
+        self.layers = nn.Sequential(nn.Linear(in_features=dim, out_features=dim),
+                                    nn.ReLU(),
+                                    nn.Linear(in_features=dim, out_features=dim),
+                                    nn.ReLU())
+
+    def forward(self, embs, batch_idx):
+        x = self.layers(embs)
+        return scatter_add(x, batch_idx, dim=0)
