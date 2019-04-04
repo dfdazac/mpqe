@@ -233,7 +233,8 @@ class RGCNEncoderDecoder(nn.Module):
         return scatter_add(embs, batch_idx, dim=0)
 
     def max_readout(self, embs, batch_idx):
-        return scatter_max(embs, batch_idx, dim=0)
+        out, argmax = scatter_max(embs, batch_idx, dim=0)
+        return out
 
     def forward(self, formula, queries, target_nodes,
                 anchor_ids=None, var_ids=None, q_graphs=None):

@@ -31,7 +31,7 @@ def _get_perc_scores(scores, lengths):
         cum_sum += length
     return perc_scores
 
-def eval_auc_queries(test_queries, enc_dec, batch_size=512, hard_negatives=False, seed=0):
+def eval_auc_queries(test_queries, enc_dec, batch_size=256, hard_negatives=False, seed=0):
     predictions = []
     labels = []
     formula_aucs = {}
@@ -66,7 +66,7 @@ def eval_auc_queries(test_queries, enc_dec, batch_size=512, hard_negatives=False
     return overall_auc, formula_aucs
 
     
-def eval_perc_queries(test_queries, enc_dec, batch_size=512, hard_negatives=False):
+def eval_perc_queries(test_queries, enc_dec, batch_size=256, hard_negatives=False):
     perc_scores = []
     for formula in test_queries:
         formula_queries = test_queries[formula]
