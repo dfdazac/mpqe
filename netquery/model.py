@@ -190,11 +190,11 @@ class SoftAndEncoderDecoder(nn.Module):
 
 
 from torch_geometric.nn import RGCNConv
-from torch_scatter import scatter_add, scatter_mean, scatter_min, scatter_max, scatter_std
+from torch_scatter import scatter_add, scatter_max
 import torch.nn.functional as F
 
 class RGCNEncoderDecoder(nn.Module):
-    def __init__(self, graph, enc):
+    def __init__(self, graph, enc, readout='sum'):
         super(RGCNEncoderDecoder, self).__init__()
         self.enc = enc
         self.graph = graph
@@ -214,10 +214,22 @@ class RGCNEncoderDecoder(nn.Module):
                 self.rel_ids[rel] = id_rel
                 id_rel += 1
 
-        # TODO: hparam num_bases
         # TODO: hparam num_layers
         self.rgcn = RGCNConv(in_channels=self.emb_dim, out_channels=self.emb_dim,
                              num_relations=len(graph.rel_edges), num_bases=10)
+
+        if readout == 'sum':
+            self.readout = self.sum_readout
+        elif readout == 'max':
+            self.readout = self.max_readout
+        else:
+            raise ValueError(f'Unknown readout function {readout}')
+
+    def sum_readout(self, out, batch_idx):
+        return scatter_add(out, batch_idx, dim=0)
+
+    def max_readout(self, out, batch_idx):
+        return scatter_max(out, batch_idx, dim=0)
 
     def forward(self, formula, queries, target_nodes,
                 anchor_ids=None, var_ids=None, q_graphs=None):
@@ -243,8 +255,7 @@ class RGCNEncoderDecoder(nn.Module):
         q_graphs.x = x
 
         out = F.relu(self.rgcn(q_graphs.x, q_graphs.edge_index, q_graphs.edge_type))
-        # TODO: hparam readout function
-        out = scatter_add(out, q_graphs.batch, dim=0)
+        out = self.readout(out, q_graphs.batch)
 
         target_embeds = self.enc(target_nodes, formula.target_mode).t()
         scores = F.cosine_similarity(out, target_embeds, dim=1)
