@@ -75,6 +75,6 @@ model_file = args.model_dir + "/{data:s}{depth:d}-{embed_dim:d}-{lr:f}-rgcn.pt".
 logger = setup_logging(log_file)
 
 run_train(enc_dec, optimizer, train_queries, val_queries, test_queries, logger,
-          max_burn_in=args.max_burn_in, val_every=args.val_every,
+          batch_size=args.batch_size, max_burn_in=args.max_burn_in, val_every=args.val_every,
           max_iter=args.max_iter, model_file=model_file)
 torch.save(enc_dec.state_dict(), model_file)
