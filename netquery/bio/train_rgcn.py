@@ -22,6 +22,7 @@ parser.add_argument("--cuda", action='store_true')
 parser.add_argument("--log_dir", type=str, default="./")
 parser.add_argument("--model_dir", type=str, default="./")
 parser.add_argument("--decoder", type=str, default="bilinear")
+parser.add_argument("--readout", type=str, default="sum")
 parser.add_argument("--inter_decoder", type=str, default="mean")
 parser.add_argument("--opt", type=str, default="adam")
 args = parser.parse_args()
@@ -49,7 +50,7 @@ for i in range(2,4):
 
 
 enc = get_encoder(args.depth, graph, out_dims, feature_modules, args.cuda)
-enc_dec = RGCNEncoderDecoder(graph, enc)
+enc_dec = RGCNEncoderDecoder(graph, enc, args.readout)
 if args.cuda:
     enc_dec.cuda()
 
@@ -58,20 +59,22 @@ if args.opt == "sgd":
 elif args.opt == "adam":
     optimizer = optim.Adam([p for p in enc_dec.parameters() if p.requires_grad], lr=args.lr)
 
-log_file = args.log_dir + "/{data:s}{depth:d}-{embed_dim:d}-{lr:f}-rgcn.log".format(
+log_file = args.log_dir + "/{data:s}{depth:d}-{embed_dim:d}-{lr:f}-rgcn-{readout}.log".format(
         data=args.data_dir.strip().split("/")[-1],
         depth=args.depth,
         embed_dim=args.embed_dim,
         lr=args.lr,
         decoder=args.decoder,
-        inter_decoder=args.inter_decoder)
-model_file = args.model_dir + "/{data:s}{depth:d}-{embed_dim:d}-{lr:f}-rgcn.pt".format(
+        inter_decoder=args.inter_decoder,
+        readout=args.readout)
+model_file = args.model_dir + "/{data:s}{depth:d}-{embed_dim:d}-{lr:f}-rgcn-{readout}.pt".format(
         data=args.data_dir.strip().split("/")[-1],
         depth=args.depth,
         embed_dim=args.embed_dim,
         lr=args.lr,
         decoder=args.decoder,
-        inter_decoder=args.inter_decoder)
+        inter_decoder=args.inter_decoder,
+        readout=args.readout)
 logger = setup_logging(log_file)
 
 run_train(enc_dec, optimizer, train_queries, val_queries, test_queries, logger,
