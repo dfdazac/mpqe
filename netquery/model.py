@@ -259,6 +259,7 @@ class RGCNEncoderDecoder(nn.Module):
         q_graphs.x = x
 
         out = F.relu(self.rgcn(q_graphs.x, q_graphs.edge_index, q_graphs.edge_type))
+        out = self.rgcn(out, q_graphs.edge_index, q_graphs.edge_type)
         out = self.readout(out, q_graphs.batch)
 
         target_embeds = self.enc(target_nodes, formula.target_mode).t()

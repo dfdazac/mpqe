@@ -71,7 +71,7 @@ def run_train(model, optimizer, train_queries, val_queries, test_queries, logger
         
         if edge_conv:
             for query_type in train_queries:
-                if query_type == "1-chain":
+                if query_type == "1-chain" and max_burn_in > 0:
                     continue
                 if "inter" in query_type:
                     #loss += inter_weight*run_batch(train_queries[query_type], model, i, batch_size)
