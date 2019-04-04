@@ -3,7 +3,7 @@ import torch.nn as nn
 
 import random
 from netquery.graph import _reverse_relation
-from .data_utils import RGCNQueryDataset
+#from .data_utils import RGCNQueryDataset
 
 EPS = 10e-6
 
@@ -223,8 +223,9 @@ class RGCNEncoderDecoder(nn.Module):
         elif readout == 'max':
             self.readout = self.max_readout
         elif readout == 'mlp':
-            self.mlp = MLPReadout(self.emb_dim)
-            self.readout = self.mlp
+            self.readout = MLPReadout(self.emb_dim)
+        elif readout == 'targetmlp':
+            self.readout = TargetMLPReadout(self.emb_dim)
         else:
             raise ValueError(f'Unknown readout function {readout}')
 
@@ -297,3 +298,47 @@ class MLPReadout(nn.Module):
     def forward(self, embs, batch_idx):
         x = self.layers(embs)
         return scatter_add(x, batch_idx, dim=0)
+
+
+class TargetMLPReadout(nn.Module):
+    def __init__(self, dim):
+        super(TargetMLPReadout, self).__init__()
+        self.layers = nn.Sequential(nn.Linear(in_features=2*dim, out_features=dim),
+                                    nn.ReLU(),
+                                    nn.Linear(in_features=dim, out_features=dim),
+                                    nn.ReLU())
+
+    def forward(self, embs, batch_idx, batch_size, num_nodes, num_anchors):
+        device = embs.device
+
+        non_target_idx = torch.ones(num_nodes, dtype=torch.uint8)
+        non_target_idx[num_anchors] = 0
+        target_idx = 1 - non_target_idx
+        non_target_idx.to(device)
+        target_idx.to(device)
+
+        batch_idx = batch_idx.reshape(num_nodes, -1)
+        batch_idx = batch_idx[non_target_idx].reshape(-1)
+
+        embs = embs.reshape(batch_size, num_nodes, -1)
+        non_targets = embs[:, non_target_idx]
+        targets = embs[:, 1 - non_target_idx].expand_as(non_targets)
+
+        x = torch.cat((targets, non_targets), dim=-1)
+        x = x.reshape(batch_size * (num_nodes - 1), -1).contiguous()
+
+        x = self.layers(x)
+        return scatter_add(x, batch_idx, dim=0)
+
+
+if __name__ == '__main__':
+    batch_size = 64
+    num_nodes = 4
+    num_anchors = 2
+    emb_dim = 16
+    embs = torch.rand(batch_size * num_nodes, emb_dim)
+    batch_idx = torch.arange(start=0, end=batch_size).unsqueeze(dim=-1)
+    batch_idx = batch_idx.expand(-1, num_nodes).reshape(-1)
+    model = TargetMLPReadout(emb_dim)
+    out = model(embs, batch_idx, batch_size, num_nodes, num_anchors)
+    print(out.shape)
