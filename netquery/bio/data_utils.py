@@ -8,24 +8,31 @@ import json
 from netquery.data_utils import parallel_sample, load_queries_by_type, sample_clean_test
 from netquery.graph import Graph, Query, _reverse_edge
 
-def load_graph(data_dir, embed_dim):
+def load_graph(data_dir, embed_dim=None, create_features=False):
     rels, adj_lists, node_maps = pickle.load(open(data_dir+"/graph_data.pkl", "rb"))
-    node_mode_counts = {mode: len(node_maps[mode]) for mode in node_maps}
-    num_nodes = sum(node_mode_counts.values())
+    if create_features:
+        node_mode_counts = {mode: len(node_maps[mode]) for mode in node_maps}
+        num_nodes = sum(node_mode_counts.values())
 
-    new_node_maps = torch.ones(num_nodes + 1, dtype=torch.long).fill_(-1)
-    for m, id_list in node_maps.items():
-        for i, n in enumerate(id_list):
-            assert new_node_maps[n] == -1
-            new_node_maps[n] = i
+        new_node_maps = torch.ones(num_nodes + 1, dtype=torch.long).fill_(-1)
+        for m, id_list in node_maps.items():
+            for i, n in enumerate(id_list):
+                assert new_node_maps[n] == -1
+                new_node_maps[n] = i
 
-    node_maps = new_node_maps
-    feature_dims = {m : embed_dim for m in rels}
-    feature_modules = {m : torch.nn.Embedding(node_mode_counts[m] + 1, embed_dim) for m in rels}
-    for mode in rels:
-        feature_modules[mode].weight.data.normal_(0, 1./embed_dim)
+        node_maps = new_node_maps
+        feature_dims = {m : embed_dim for m in rels}
+        feature_modules = {m : torch.nn.Embedding(node_mode_counts[m] + 1, embed_dim) for m in rels}
+        for mode in rels:
+            feature_modules[mode].weight.data.normal_(0, 1./embed_dim)
 
-    features = lambda nodes, mode: feature_modules[mode](node_maps[nodes])
+        features = lambda nodes, mode: feature_modules[mode](node_maps[nodes])
+    else:
+        features = None
+        feature_dims = None
+        feature_modules = None
+        node_maps = None
+
     graph = Graph(features, feature_dims, rels, adj_lists)
     return graph, feature_modules, node_maps
 
