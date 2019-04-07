@@ -194,11 +194,16 @@ from torch_scatter import scatter_add, scatter_max
 import torch.nn.functional as F
 
 class RGCNEncoderDecoder(nn.Module):
-    def __init__(self, graph, enc, readout='sum'):
+    def __init__(self, graph, embed_dim, readout='sum'):
         super(RGCNEncoderDecoder, self).__init__()
-        self.enc = enc
+        num_entities = sum(map(len, graph.full_sets.values()))
         self.graph = graph
-        self.emb_dim = graph.feature_dims[next(iter(graph.feature_dims))]
+        self.emb_dim = embed_dim
+
+        # TODO: in the future this can be an external, more complex module
+        #   that implements things like normalization and node aggregation.
+        #   See encoders.py
+        self.entity_embs = nn.Embedding(num_entities, self.emb_dim)
         self.mode_embeddings = nn.Embedding(len(graph.mode_weights), self.emb_dim)
 
         self.mode_ids = {}
