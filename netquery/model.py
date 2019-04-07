@@ -3,7 +3,7 @@ import torch.nn as nn
 
 import random
 from netquery.graph import _reverse_relation
-from .data_utils import RGCNQueryDataset
+from netquery.data_utils import RGCNQueryDataset
 
 EPS = 10e-6
 
@@ -214,7 +214,6 @@ class RGCNEncoderDecoder(nn.Module):
                 self.rel_ids[rel] = id_rel
                 id_rel += 1
 
-        # TODO: hparam num_layers
         self.rgcn = RGCNConv(in_channels=self.emb_dim, out_channels=self.emb_dim,
                              num_relations=len(graph.rel_edges), num_bases=10)
 
@@ -229,10 +228,10 @@ class RGCNEncoderDecoder(nn.Module):
         else:
             raise ValueError(f'Unknown readout function {readout}')
 
-    def sum_readout(self, embs, batch_idx):
+    def sum_readout(self, embs, batch_idx, *args, **kwargs):
         return scatter_add(embs, batch_idx, dim=0)
 
-    def max_readout(self, embs, batch_idx):
+    def max_readout(self, embs, batch_idx, *args, **kwargs):
         out, argmax = scatter_max(embs, batch_idx, dim=0)
         return out
 
@@ -261,7 +260,7 @@ class RGCNEncoderDecoder(nn.Module):
 
         out = F.relu(self.rgcn(q_graphs.x, q_graphs.edge_index, q_graphs.edge_type))
         out = self.rgcn(out, q_graphs.edge_index, q_graphs.edge_type)
-        out = self.readout(out, q_graphs.batch)
+        out = self.readout(out, q_graphs.batch, batch_size, num_nodes, n_anchors)
 
         target_embeds = self.enc(target_nodes, formula.target_mode).t()
         scores = F.cosine_similarity(out, target_embeds, dim=1)
@@ -297,7 +296,7 @@ class MLPReadout(nn.Module):
                                     nn.Linear(in_features=dim, out_features=dim),
                                     nn.ReLU())
 
-    def forward(self, embs, batch_idx):
+    def forward(self, embs, batch_idx, *args, **kwargs):
         x = self.layers(embs)
         return scatter_add(x, batch_idx, dim=0)
 
@@ -315,12 +314,10 @@ class TargetMLPReadout(nn.Module):
 
         non_target_idx = torch.ones(num_nodes, dtype=torch.uint8)
         non_target_idx[num_anchors] = 0
-        target_idx = 1 - non_target_idx
         non_target_idx.to(device)
-        target_idx.to(device)
 
-        batch_idx = batch_idx.reshape(num_nodes, -1)
-        batch_idx = batch_idx[non_target_idx].reshape(-1)
+        batch_idx = batch_idx.reshape(batch_size, -1)
+        batch_idx = batch_idx[:, non_target_idx].reshape(-1)
 
         embs = embs.reshape(batch_size, num_nodes, -1)
         non_targets = embs[:, non_target_idx]
