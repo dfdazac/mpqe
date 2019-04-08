@@ -241,6 +241,14 @@ class RGCNEncoderDecoder(nn.Module):
         return out
 
     def forward(self, anchor_ids, var_ids, edge_index, edge_type, batch_idx, targets):
+        device = next(self.parameters()).device
+        anchor_ids = anchor_ids.to(device)
+        var_ids = var_ids.to(device)
+        edge_index = edge_index.to(device)
+        edge_type = edge_type.to(device)
+        batch_idx = batch_idx.to(device)
+        targets = targets.to(device)
+
         batch_size = anchor_ids.shape[0]
         n_anchors, n_vars = anchor_ids.shape[1], var_ids.shape[1]
         n_nodes = n_anchors + n_vars
