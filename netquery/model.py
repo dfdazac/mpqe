@@ -240,7 +240,16 @@ class RGCNEncoderDecoder(nn.Module):
         out, argmax = scatter_max(embs, batch_idx, dim=0)
         return out
 
-    def forward(self, anchor_ids, var_ids, edge_index, edge_type, batch_idx, targets):
+    def forward(self, formula, queries, target_nodes):
+        query_graph = RGCNQueryDataset.get_query_graph(formula, queries,
+                                                       self.rel_ids, self.mode_ids)
+        anchor_ids, var_ids, edge_index, edge_type, batch_idx = query_graph
+        targets = torch.tensor(target_nodes, dtype=torch.long)
+
+        return self.forward_train(anchor_ids, var_ids, edge_index, edge_type,
+                                  batch_idx, targets)
+
+    def forward_train(self, anchor_ids, var_ids, edge_index, edge_type, batch_idx, targets):
         device = next(self.parameters()).device
         anchor_ids = anchor_ids.to(device)
         var_ids = var_ids.to(device)
@@ -268,8 +277,8 @@ class RGCNEncoderDecoder(nn.Module):
 
     def margin_loss(self, anchor_ids, var_ids, edge_index, edge_type, batch_idx,
                     targets, neg_targets, margin=1):
-        affs = self.forward(anchor_ids, var_ids, edge_index, edge_type, batch_idx, targets)
-        neg_affs = self.forward(anchor_ids, var_ids, edge_index, edge_type, batch_idx, neg_targets)
+        affs = self.forward_train(anchor_ids, var_ids, edge_index, edge_type, batch_idx, targets)
+        neg_affs = self.forward_train(anchor_ids, var_ids, edge_index, edge_type, batch_idx, neg_targets)
         loss = margin - (affs - neg_affs)
         loss = torch.clamp(loss, min=0)
         loss = loss.mean()

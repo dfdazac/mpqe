@@ -62,8 +62,8 @@ def run_train(model, optimizer, train_queries, val_queries, test_queries, logger
         if not edge_conv and (check_conv(vals) or len(losses) >= max_burn_in):
             logger.info("Edge converged at iteration {:d}".format(i-1))
             logger.info("Testing at edge conv...")
-            #conv_test = run_eval(model, test_queries, i, logger)
-            conv_test = 0#np.mean(list(conv_test.values()))
+            conv_test = run_eval(model, test_queries, i, logger)
+            conv_test = np.mean(list(conv_test.values()))
             edge_conv = True
             losses = []
             ema_loss = None
@@ -94,16 +94,16 @@ def run_train(model, optimizer, train_queries, val_queries, test_queries, logger
         if i % log_every == 0:
             logger.info("Iter: {:d}; ema_loss: {:f}".format(i, ema_loss))
             
-        # if i >= val_every and i % val_every == 0:
-        #     v = run_eval(model, val_queries, i, logger)
-        #     if edge_conv:
-        #         vals.append(np.mean(list(v.values())))
-        #     else:
-        #         vals.append(v["1-chain"])
+        if i >= val_every and i % val_every == 0:
+            v = run_eval(model, val_queries, i, logger)
+            if edge_conv:
+                vals.append(np.mean(list(v.values())))
+            else:
+                vals.append(v["1-chain"])
     
-    #v = run_eval(model, test_queries, i, logger)
-    #logger.info("Test macro-averaged val: {:f}".format(np.mean(list(v.values()))))
-    #logger.info("Improvement from edge conv: {:f}".format((np.mean(list(v.values()))-conv_test)/conv_test))
+    v = run_eval(model, test_queries, i, logger)
+    logger.info("Test macro-averaged val: {:f}".format(np.mean(list(v.values()))))
+    logger.info("Improvement from edge conv: {:f}".format((np.mean(list(v.values()))-conv_test)/conv_test))
 
 def run_batch(train_queries, enc_dec, iter_count, batch_size, hard_negatives=False):
     num_queries = [float(len(queries)) for queries in list(train_queries.values())]

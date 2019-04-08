@@ -148,6 +148,8 @@ class QueryDataset(Dataset):
         return formula, queries
 
 
+from torch_geometric.data import Data, Batch
+
 QUERY_EDGE_INDICES = {'1-chain': [[0],
                                   [1]],
                       '2-chain': [[0, 2],
@@ -277,6 +279,42 @@ class RGCNQueryDataset(Dataset):
 
         return (anchor_ids, var_ids, edge_index, edge_types, batch_idx,
                 targets, neg_targets, hard_negatives)
+
+    @staticmethod
+    def get_query_graph(formula, queries, rel_ids, mode_ids):
+        batch_size = len(queries)
+        n_anchors = len(formula.anchor_modes)
+
+        anchor_ids = np.empty([batch_size, n_anchors]).astype(np.int)
+        # First rows of x contain embeddings of all anchor nodes
+        for i, anchor_mode in enumerate(formula.anchor_modes):
+            anchors = [q.anchor_nodes[i] for q in queries]
+            anchor_ids[:, i] = anchors
+
+        # The rest of the rows contain generic mode embeddings for variable nodes
+        all_nodes = formula.get_nodes()
+        var_idx = VARIABLE_NODE_IDX[formula.query_type]
+        var_ids = np.array([mode_ids[all_nodes[i]] for i in var_idx],
+                           dtype=np.int)
+        var_ids = np.tile(var_ids, (batch_size, 1))
+
+        edge_index = QUERY_EDGE_INDICES[formula.query_type]
+        edge_index = torch.tensor(edge_index, dtype=torch.long)
+
+        rels = formula.get_rels()
+        rel_idx = QUERY_EDGE_LABEL_IDX[formula.query_type]
+        edge_type = [rel_ids[_reverse_relation(rels[i])] for i in rel_idx]
+        edge_type = torch.tensor(edge_type, dtype=torch.long)
+
+        edge_data = Data(edge_index=edge_index)
+        edge_data.edge_type = edge_type
+        graph = Batch.from_data_list([edge_data for i in range(batch_size)])
+
+        return (torch.tensor(anchor_ids, dtype=torch.long),
+                torch.tensor(var_ids, dtype=torch.long),
+                graph.edge_index,
+                graph.edge_type,
+                graph.batch)
 
 
 def make_data_iterator(data_loader):
