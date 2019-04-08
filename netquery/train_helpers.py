@@ -48,9 +48,11 @@ def run_train(model, optimizer, train_queries, val_queries, test_queries, logger
     conv_test = None
 
     train_iterators = {}
-    for query_type in train_queries:
+    query_types = {q_type for q_type in train_queries}
+    for query_type in query_types:
         queries = train_queries[query_type]
         train_iterators[query_type] = get_queries_iterator(queries, batch_size, model)
+    del train_queries
 
     for i in range(max_iter):
         
@@ -60,8 +62,8 @@ def run_train(model, optimizer, train_queries, val_queries, test_queries, logger
         if not edge_conv and (check_conv(vals) or len(losses) >= max_burn_in):
             logger.info("Edge converged at iteration {:d}".format(i-1))
             logger.info("Testing at edge conv...")
-            conv_test = run_eval(model, test_queries, i, logger)
-            conv_test = np.mean(list(conv_test.values()))
+            #conv_test = run_eval(model, test_queries, i, logger)
+            conv_test = 0#np.mean(list(conv_test.values()))
             edge_conv = True
             losses = []
             ema_loss = None
@@ -70,7 +72,7 @@ def run_train(model, optimizer, train_queries, val_queries, test_queries, logger
                 torch.save(model.state_dict(), model_file+"-edge_conv")
         
         if edge_conv:
-            for query_type in train_queries:
+            for query_type in query_types:
                 if query_type == "1-chain" and max_burn_in > 0:
                     continue
                 if "inter" in query_type:
@@ -92,16 +94,16 @@ def run_train(model, optimizer, train_queries, val_queries, test_queries, logger
         if i % log_every == 0:
             logger.info("Iter: {:d}; ema_loss: {:f}".format(i, ema_loss))
             
-        if i >= val_every and i % val_every == 0:
-            v = run_eval(model, val_queries, i, logger)
-            if edge_conv:
-                vals.append(np.mean(list(v.values())))
-            else:
-                vals.append(v["1-chain"])
+        # if i >= val_every and i % val_every == 0:
+        #     v = run_eval(model, val_queries, i, logger)
+        #     if edge_conv:
+        #         vals.append(np.mean(list(v.values())))
+        #     else:
+        #         vals.append(v["1-chain"])
     
-    v = run_eval(model, test_queries, i, logger)
-    logger.info("Test macro-averaged val: {:f}".format(np.mean(list(v.values()))))
-    logger.info("Improvement from edge conv: {:f}".format((np.mean(list(v.values()))-conv_test)/conv_test))
+    #v = run_eval(model, test_queries, i, logger)
+    #logger.info("Test macro-averaged val: {:f}".format(np.mean(list(v.values()))))
+    #logger.info("Improvement from edge conv: {:f}".format((np.mean(list(v.values()))-conv_test)/conv_test))
 
 def run_batch(train_queries, enc_dec, iter_count, batch_size, hard_negatives=False):
     num_queries = [float(len(queries)) for queries in list(train_queries.values())]
@@ -119,9 +121,9 @@ def run_batch(train_queries, enc_dec, iter_count, batch_size, hard_negatives=Fal
 
 def run_batch_v2(queries_iterator, enc_dec, hard_negatives=False):
     batch = next(queries_iterator)
-    node_ids, edge_index, edge_type, n_anchors, batch_idx, targets, neg_targets, hard_negatives = batch
+    anchor_ids, var_ids, edge_index, edge_type, batch_idx, targets, neg_targets, hard_negs = batch
     if hard_negatives:
-        neg_targets = hard_negatives
-    loss = enc_dec.margin_loss(node_ids, edge_index, edge_type, n_anchors, batch_idx,
+        neg_targets = hard_negs
+    loss = enc_dec.margin_loss(anchor_ids, var_ids, edge_index, edge_type, batch_idx,
                     targets, neg_targets)
     return loss

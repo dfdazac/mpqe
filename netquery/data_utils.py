@@ -12,7 +12,7 @@ def load_queries(data_file, keep_graph=False):
     return [Query.deserialize(info, keep_graph=keep_graph) for info in raw_info]
 
 def load_queries_by_formula(data_file):
-    raw_info = pickle.load(open(data_file, "rb"))[:10]
+    raw_info = pickle.load(open(data_file, "rb"))
     queries = defaultdict(lambda : defaultdict(list))
     for raw_query in raw_info:
         query = Query.deserialize(raw_query)
@@ -201,10 +201,9 @@ class RGCNQueryDataset(Dataset):
         n_queries = sum(map(len, queries.values()))
         n_rels = len(QUERY_EDGE_LABEL_IDX[query_type])
 
-        self.query_type = np.array([query_type], dtype=np.str)
         self.anchor_nodes = torch.empty(n_queries, n_anchors, dtype=torch.long)
         self.var_nodes = torch.empty(n_queries, n_vars, dtype=torch.long)
-        self.edge_types = torch.empty(n_queries, n_rels)
+        self.edge_types = torch.empty(n_queries, n_rels, dtype=torch.long)
         self.target_nodes = torch.empty(n_queries, dtype=torch.long)
         self.graph_num_nodes = torch.tensor(enc_dec.num_entities)
         self.neg_nodes = -1 * torch.ones(n_queries, dtype=torch.long)
@@ -228,9 +227,9 @@ class RGCNQueryDataset(Dataset):
                 self.edge_types[i] = edge_type
                 self.target_nodes[i] = query.target_node
 
-                if len(query.neg_samples) > 0:
+                if query.neg_samples is not None and len(query.neg_samples) > 0:
                     self.neg_nodes[i] = query.neg_samples[0]
-                if len(query.hard_neg_samples) > 0:
+                if query.hard_neg_samples is not None and len(query.hard_neg_samples) > 0:
                     self.hard_neg[i] = query.hard_neg_samples[0]
 
                 i += 1
@@ -248,7 +247,7 @@ class RGCNQueryDataset(Dataset):
         batch_size = len(idx_list)
         anchor_ids = self.anchor_nodes[idx_list]
         var_ids = self.var_nodes[idx_list]
-        node_ids = torch.cat((anchor_ids, var_ids), dim=-1).reshape(-1)
+        #node_ids = torch.cat((anchor_ids, var_ids), dim=-1).reshape(-1)
 
         n_anchors, n_vars = anchor_ids.shape[1], var_ids.shape[1]
         n_nodes = n_anchors + n_vars
@@ -272,11 +271,11 @@ class RGCNQueryDataset(Dataset):
         hard_negatives = self.hard_neg[idx_list]
 
         if n_nodes == 2:
-            neg_targets = torch.randint(self.graph_num_nodes, (batch_size))
+            neg_targets = torch.randint(self.graph_num_nodes, (batch_size,), dtype=torch.long)
         else:
             neg_targets = self.neg_nodes[idx_list]
 
-        return (node_ids, edge_index, edge_types, n_anchors, batch_idx,
+        return (anchor_ids, var_ids, edge_index, edge_types, batch_idx,
                 targets, neg_targets, hard_negatives)
 
 
@@ -293,7 +292,7 @@ def make_data_iterator(data_loader):
 def get_queries_iterator(queries, batch_size, enc_dec=None):
     dataset = RGCNQueryDataset(queries, enc_dec)
     loader = DataLoader(dataset, batch_size, shuffle=True,
-                        collate_fn=dataset.collate_fn)
+                        collate_fn=dataset.collate_fn, num_workers=1)
     return make_data_iterator(loader)
 
 

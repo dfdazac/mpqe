@@ -240,21 +240,28 @@ class RGCNEncoderDecoder(nn.Module):
         out, argmax = scatter_max(embs, batch_idx, dim=0)
         return out
 
-    def forward(self, node_ids, edge_index, edge_type, n_anchors, batch_idx, targets):
-        x = self.enc(node_ids)
+    def forward(self, anchor_ids, var_ids, edge_index, edge_type, batch_idx, targets):
+        batch_size = anchor_ids.shape[0]
+        n_anchors, n_vars = anchor_ids.shape[1], var_ids.shape[1]
+        n_nodes = n_anchors + n_vars
+
+        anchor_embs = self.entity_embs(anchor_ids)
+        var_embs = self.mode_embeddings(var_ids)
+        x = torch.cat((anchor_embs, var_embs), dim=1).reshape(-1, self.emb_dim)
+
         x = F.relu(self.rgcn(x, edge_index, edge_type))
         x = self.rgcn(x, edge_index, edge_type)
-        x = self.readout(x, batch_idx, batch_size, num_nodes, n_anchors)
+        x = self.readout(x, batch_idx, batch_size, n_nodes, n_anchors)
 
-        target_embeds = self.enc(targets)
+        target_embeds = self.entity_embs(targets)
         scores = F.cosine_similarity(x, target_embeds, dim=1)
 
         return scores
 
-    def margin_loss(self, node_ids, edge_index, edge_type, n_anchors, batch_idx,
+    def margin_loss(self, anchor_ids, var_ids, edge_index, edge_type, batch_idx,
                     targets, neg_targets, margin=1):
-        affs = self.forward(node_ids, edge_index, edge_type, n_anchors, batch_idx, targets)
-        neg_affs = self.forward(node_ids, edge_index, edge_type, n_anchors, batch_idx, neg_targets)
+        affs = self.forward(anchor_ids, var_ids, edge_index, edge_type, batch_idx, targets)
+        neg_affs = self.forward(anchor_ids, var_ids, edge_index, edge_type, batch_idx, neg_targets)
         loss = margin - (affs - neg_affs)
         loss = torch.clamp(loss, min=0)
         loss = loss.mean()
