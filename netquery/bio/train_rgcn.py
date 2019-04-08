@@ -49,8 +49,7 @@ for i in range(2,4):
     test_queries["full_neg"].update(i_test_queries["full_neg"])
 
 
-enc = get_encoder(args.depth, graph, out_dims, feature_modules, args.cuda)
-enc_dec = RGCNEncoderDecoder(graph, enc, args.readout)
+enc_dec = RGCNEncoderDecoder(graph, args.embed_dim, args.readout)
 if args.cuda:
     enc_dec.cuda()
 
@@ -58,6 +57,8 @@ if args.opt == "sgd":
     optimizer = optim.SGD([p for p in enc_dec.parameters() if p.requires_grad], lr=args.lr, momentum=0)
 elif args.opt == "adam":
     optimizer = optim.Adam([p for p in enc_dec.parameters() if p.requires_grad], lr=args.lr)
+else:
+    raise ValueError('Unknown optimizer {}'.format(args.opt))
 
 log_file = args.log_dir + "/{data:s}{depth:d}-{embed_dim:d}-{lr:f}-rgcn-{readout}.log".format(
         data=args.data_dir.strip().split("/")[-1],
