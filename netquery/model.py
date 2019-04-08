@@ -196,14 +196,14 @@ import torch.nn.functional as F
 class RGCNEncoderDecoder(nn.Module):
     def __init__(self, graph, embed_dim, readout='sum'):
         super(RGCNEncoderDecoder, self).__init__()
-        num_entities = sum(map(len, graph.full_sets.values()))
+        self.num_entities = sum(map(len, graph.full_sets.values()))
         self.graph = graph
         self.emb_dim = embed_dim
 
         # TODO: in the future this can be an external, more complex module
         #   that implements things like normalization and node aggregation.
         #   See encoders.py
-        self.entity_embs = nn.Embedding(num_entities, self.emb_dim)
+        self.entity_embs = nn.Embedding(self.num_entities, self.emb_dim)
         self.mode_embeddings = nn.Embedding(len(graph.mode_weights), self.emb_dim)
 
         self.mode_ids = {}
@@ -240,53 +240,21 @@ class RGCNEncoderDecoder(nn.Module):
         out, argmax = scatter_max(embs, batch_idx, dim=0)
         return out
 
-    def forward(self, formula, queries, target_nodes,
-                anchor_ids=None, var_ids=None, q_graphs=None):
+    def forward(self, node_ids, edge_index, edge_type, n_anchors, batch_idx, targets):
+        x = self.enc(node_ids)
+        x = F.relu(self.rgcn(x, edge_index, edge_type))
+        x = self.rgcn(x, edge_index, edge_type)
+        x = self.readout(x, batch_idx, batch_size, num_nodes, n_anchors)
 
-        if anchor_ids is None or var_ids is None or q_graphs is None:
-            anchor_ids, var_ids, q_graphs = RGCNQueryDataset.get_query_graph(formula,
-                                                                          queries,
-                                                                          self.rel_ids,
-                                                                          self.mode_ids)
-        device = next(self.parameters()).device
-        var_ids = var_ids.to(device)
-        q_graphs = q_graphs.to(device)
-
-        batch_size, n_anchors = anchor_ids.shape
-        n_vars = var_ids.shape[0]
-        num_nodes = n_anchors + n_vars
-
-        x = torch.empty(batch_size, num_nodes, self.emb_dim).to(var_ids.device)
-        for i, anchor_mode in enumerate(formula.anchor_modes):
-            x[:, i] = self.enc(anchor_ids[:, i], anchor_mode).t()
-        x[:, n_anchors:] = self.mode_embeddings(var_ids)
-        x = x.reshape(-1, self.emb_dim)
-        q_graphs.x = x
-
-        out = F.relu(self.rgcn(q_graphs.x, q_graphs.edge_index, q_graphs.edge_type))
-        out = self.rgcn(out, q_graphs.edge_index, q_graphs.edge_type)
-        out = self.readout(out, q_graphs.batch, batch_size, num_nodes, n_anchors)
-
-        target_embeds = self.enc(target_nodes, formula.target_mode).t()
-        scores = F.cosine_similarity(out, target_embeds, dim=1)
+        target_embeds = self.enc(targets)
+        scores = F.cosine_similarity(x, target_embeds, dim=1)
 
         return scores
 
-    def margin_loss(self, formula, queries, anchor_ids=None, var_ids=None, q_graphs=None,
-                    hard_negatives=False, margin=1):
-        if not "inter" in formula.query_type and hard_negatives:
-            raise Exception("Hard negative examples can only be used with intersection queries")
-        elif hard_negatives:
-            neg_nodes = [random.choice(query.hard_neg_samples) for query in queries]
-        elif formula.query_type == "1-chain":
-            neg_nodes = [random.choice(self.graph.full_lists[formula.target_mode]) for _ in queries]
-        else:
-            neg_nodes = [random.choice(query.neg_samples) for query in queries]
-
-        affs = self.forward(formula, queries, [query.target_node for query in queries],
-                            anchor_ids, var_ids, q_graphs)
-        neg_affs = self.forward(formula, queries, neg_nodes,
-                                anchor_ids, var_ids, q_graphs)
+    def margin_loss(self, node_ids, edge_index, edge_type, n_anchors, batch_idx,
+                    targets, neg_targets, margin=1):
+        affs = self.forward(node_ids, edge_index, edge_type, n_anchors, batch_idx, targets)
+        neg_affs = self.forward(node_ids, edge_index, edge_type, n_anchors, batch_idx, neg_targets)
         loss = margin - (affs - neg_affs)
         loss = torch.clamp(loss, min=0)
         loss = loss.mean()

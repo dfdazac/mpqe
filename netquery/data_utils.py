@@ -191,7 +191,6 @@ class RGCNQueryDataset(Dataset):
             (list of graph.Query?)
     """
     def __init__(self, queries, enc_dec):
-
         mode_ids = enc_dec.mode_ids
         rel_ids = enc_dec.rel_ids
 
@@ -202,9 +201,14 @@ class RGCNQueryDataset(Dataset):
         n_queries = sum(map(len, queries.values()))
         n_rels = len(QUERY_EDGE_LABEL_IDX[query_type])
 
+        self.query_type = np.array([query_type], dtype=np.str)
         self.anchor_nodes = torch.empty(n_queries, n_anchors, dtype=torch.long)
         self.var_nodes = torch.empty(n_queries, n_vars, dtype=torch.long)
         self.edge_types = torch.empty(n_queries, n_rels)
+        self.target_nodes = torch.empty(n_queries, dtype=torch.long)
+        self.graph_num_nodes = torch.tensor(enc_dec.num_entities)
+        self.neg_nodes = -1 * torch.ones(n_queries, dtype=torch.long)
+        self.hard_neg = -1 * torch.ones(n_queries, dtype=torch.long)
 
         i = 0
         for formula, form_queries in queries.items():
@@ -222,6 +226,13 @@ class RGCNQueryDataset(Dataset):
                 self.anchor_nodes[i] = torch.tensor(query.anchor_nodes, dtype=torch.long)
                 self.var_nodes[i] = var_ids
                 self.edge_types[i] = edge_type
+                self.target_nodes[i] = query.target_node
+
+                if len(query.neg_samples) > 0:
+                    self.neg_nodes[i] = query.neg_samples[0]
+                if len(query.hard_neg_samples) > 0:
+                    self.hard_neg[i] = query.hard_neg_samples[0]
+
                 i += 1
 
         edge_index = QUERY_EDGE_INDICES[query_type]
@@ -254,8 +265,19 @@ class RGCNQueryDataset(Dataset):
 
         edge_types = self.edge_types[idx_list].reshape(-1)
 
-        # TODO: possibly return n_anchors for later use in encoding
-        return node_ids, edge_index, edge_types
+        batch_idx = torch.arange(batch_size).expand(n_nodes, -1).t().reshape(-1).contiguous()
+
+        targets = self.target_nodes[idx_list]
+
+        hard_negatives = self.hard_neg[idx_list]
+
+        if n_nodes == 2:
+            neg_targets = torch.randint(self.graph_num_nodes, (batch_size))
+        else:
+            neg_targets = self.neg_nodes[idx_list]
+
+        return (node_ids, edge_index, edge_types, n_anchors, batch_idx,
+                targets, neg_targets, hard_negatives)
 
 
 def make_data_iterator(data_loader):

@@ -80,7 +80,7 @@ def run_train(model, optimizer, train_queries, val_queries, test_queries, logger
                     loss += inter_weight * run_batch_v2(train_iterators[query_type], model, hard_negatives=True)
                 else:
                     #loss += path_weight*run_batch(train_queries[query_type], model, i, batch_size)
-                    loss += inter_weight * run_batch_v2(train_iterators[query_type], model)
+                    loss += path_weight * run_batch_v2(train_iterators[query_type], model)
             if check_conv(vals):
                     logger.info("Fully converged at iteration {:d}".format(i))
                     break
@@ -119,5 +119,9 @@ def run_batch(train_queries, enc_dec, iter_count, batch_size, hard_negatives=Fal
 
 def run_batch_v2(queries_iterator, enc_dec, hard_negatives=False):
     batch = next(queries_iterator)
-    loss = enc_dec.margin_loss(*batch, hard_negatives=hard_negatives)
+    node_ids, edge_index, edge_type, n_anchors, batch_idx, targets, neg_targets, hard_negatives = batch
+    if hard_negatives:
+        neg_targets = hard_negatives
+    loss = enc_dec.margin_loss(node_ids, edge_index, edge_type, n_anchors, batch_idx,
+                    targets, neg_targets)
     return loss
