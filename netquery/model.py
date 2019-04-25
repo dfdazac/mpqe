@@ -254,7 +254,7 @@ class RGCNConv(MessagePassing):
         else:
             size = self.num_bases * self.in_channels
             inits.uniform(size, self.att)
-            
+
         inits.uniform(size, self.basis)
         inits.uniform(size, self.root)
         inits.uniform(size, self.bias)
