@@ -304,7 +304,8 @@ class RGCNConv(MessagePassing):
 
 
 class RGCNEncoderDecoder(nn.Module):
-    def __init__(self, graph, embed_dim, readout='sum', dropout=0):
+    def __init__(self, graph, embed_dim, readout='sum', dropout=0,
+                 weight_decay=1e-3):
         super(RGCNEncoderDecoder, self).__init__()
         self.num_entities = sum(map(len, graph.full_sets.values()))
         self.graph = graph
@@ -344,6 +345,7 @@ class RGCNEncoderDecoder(nn.Module):
             raise ValueError(f'Unknown readout function {readout}')
 
         self.dropout = nn.Dropout(dropout)
+        self.weight_decay = weight_decay
 
     def sum_readout(self, embs, batch_idx, *args, **kwargs):
         return scatter_add(embs, batch_idx, dim=0)
@@ -402,6 +404,14 @@ class RGCNEncoderDecoder(nn.Module):
         loss = margin - (affs - neg_affs)
         loss = torch.clamp(loss, min=0)
         loss = loss.mean()
+
+        if isinstance(self.readout, nn.Module):
+            l2_reg = 0
+            for param in self.readout.parameters():
+                l2_reg += torch.norm(param)
+
+            loss += self.weight_decay * l2_reg
+
         return loss
 
 
