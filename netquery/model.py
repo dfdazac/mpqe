@@ -272,7 +272,7 @@ class RGCNConv(MessagePassing):
 
     def message(self, x_j, edge_type, edge_norm):
         if self.att is None:
-            w = self.num_bases.view(self.num_relations, -1)
+            w = self.basis.view(self.num_relations, -1)
         else:
             w = torch.matmul(self.att, self.basis.view(self.num_bases, -1))
 
@@ -304,7 +304,7 @@ class RGCNConv(MessagePassing):
 
 
 class RGCNEncoderDecoder(nn.Module):
-    def __init__(self, graph, embed_dim, readout='sum'):
+    def __init__(self, graph, embed_dim, readout='sum', dropout=0):
         super(RGCNEncoderDecoder, self).__init__()
         self.num_entities = sum(map(len, graph.full_sets.values()))
         self.graph = graph
@@ -330,7 +330,7 @@ class RGCNEncoderDecoder(nn.Module):
                 id_rel += 1
 
         self.rgcn = RGCNConv(in_channels=self.emb_dim, out_channels=self.emb_dim,
-                             num_relations=len(graph.rel_edges), num_bases=10)
+                             num_relations=len(graph.rel_edges), num_bases=0)
 
         if readout == 'sum':
             self.readout = self.sum_readout
@@ -342,6 +342,8 @@ class RGCNEncoderDecoder(nn.Module):
             self.readout = TargetMLPReadout(self.emb_dim)
         else:
             raise ValueError(f'Unknown readout function {readout}')
+
+        self.dropout = nn.Dropout(dropout)
 
     def sum_readout(self, embs, batch_idx, *args, **kwargs):
         return scatter_add(embs, batch_idx, dim=0)
@@ -377,7 +379,7 @@ class RGCNEncoderDecoder(nn.Module):
         x = torch.cat((anchor_embs, var_embs), dim=1).reshape(-1, self.emb_dim)
 
         x = F.relu(self.rgcn(x, edge_index, edge_type))
-        x = self.rgcn(x, edge_index, edge_type)
+        x = self.dropout(self.rgcn(x, edge_index, edge_type))
         x = self.readout(x, batch_idx, batch_size, n_nodes, n_anchors)
 
         target_embeds = self.entity_embs(targets)
