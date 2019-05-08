@@ -17,7 +17,9 @@ def update_loss(loss, losses, ema_loss, ema_alpha=0.01):
         ema_loss = (1-ema_alpha)*ema_loss + ema_alpha*loss
     return losses, ema_loss
 
+@torch.no_grad()
 def run_eval(model, queries, iteration, logger, by_type=False):
+    model.eval()
     vals = {}
     def _print_by_rel(rel_aucs, logger):
         for rels, auc in rel_aucs.items():
@@ -120,6 +122,8 @@ def run_batch(train_queries, enc_dec, iter_count, batch_size, hard_negatives=Fal
     return loss
 
 def run_batch_v2(queries_iterator, enc_dec, hard_negatives=False):
+    enc_dec.train()
+
     batch = next(queries_iterator)
     anchor_ids, var_ids, edge_index, edge_type, batch_idx, targets, neg_targets, hard_negs = batch
     if hard_negatives:
