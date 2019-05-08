@@ -25,6 +25,7 @@ parser.add_argument("--decoder", type=str, default="bilinear")
 parser.add_argument("--readout", type=str, default="sum")
 parser.add_argument("--inter_decoder", type=str, default="mean")
 parser.add_argument("--opt", type=str, default="adam")
+parser.add_argument("--dropout", type=float, default=0)
 args = parser.parse_args()
 
 print("Loading graph data..")
@@ -49,7 +50,7 @@ for i in range(2,4):
     test_queries["full_neg"].update(i_test_queries["full_neg"])
 
 
-enc_dec = RGCNEncoderDecoder(graph, args.embed_dim, args.readout)
+enc_dec = RGCNEncoderDecoder(graph, args.embed_dim, args.readout, args.dropout)
 if args.cuda:
     enc_dec.cuda()
 
@@ -60,22 +61,24 @@ elif args.opt == "adam":
 else:
     raise ValueError('Unknown optimizer {}'.format(args.opt))
 
-log_file = args.log_dir + "/{data:s}{depth:d}-{embed_dim:d}-{lr:f}-rgcn-{readout}.log".format(
+log_file = args.log_dir + "/{data:s}{depth:d}-{embed_dim:d}-{lr:f}-rgcn-{readout}-dr{dropout:d}.log".format(
         data=args.data_dir.strip().split("/")[-1],
         depth=args.depth,
         embed_dim=args.embed_dim,
         lr=args.lr,
         decoder=args.decoder,
         inter_decoder=args.inter_decoder,
-        readout=args.readout)
-model_file = args.model_dir + "/{data:s}{depth:d}-{embed_dim:d}-{lr:f}-rgcn-{readout}.pt".format(
+        readout=args.readout,
+        dropout=int(args.dropout*10))
+model_file = args.model_dir + "/{data:s}{depth:d}-{embed_dim:d}-{lr:f}-rgcn-{readout}-dr{dropout:d}.pt".format(
         data=args.data_dir.strip().split("/")[-1],
         depth=args.depth,
         embed_dim=args.embed_dim,
         lr=args.lr,
         decoder=args.decoder,
         inter_decoder=args.inter_decoder,
-        readout=args.readout)
+        readout=args.readout,
+        dropout=int(args.dropout*10))
 logger = setup_logging(log_file)
 
 run_train(enc_dec, optimizer, train_queries, val_queries, test_queries, logger,
