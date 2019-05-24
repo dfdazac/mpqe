@@ -1,10 +1,12 @@
+import os
 from argparse import ArgumentParser
-
 from netquery.utils import *
 from netquery.bio.data_utils import load_graph
 from netquery.data_utils import load_queries_by_formula, load_test_queries_by_formula
 from netquery.model import QueryEncoderDecoder
-from netquery.train_helpers import run_train
+from netquery.train_helpers import train_ingredient, run_train
+from sacred import Experiment
+from sacred.observers import MongoObserver
 
 from torch import optim
 
@@ -77,7 +79,31 @@ model_file = args.model_dir + "/{data:s}{depth:d}-{embed_dim:d}-{lr:f}-{decoder:
         inter_decoder=args.inter_decoder)
 logger = setup_logging(log_file)
 
-run_train(enc_dec, optimizer, train_queries, val_queries, test_queries, logger,
-          max_burn_in=args.max_burn_in, val_every=args.val_every,
-          max_iter=args.max_iter, model_file=model_file)
-torch.save(enc_dec.state_dict(), model_file)
+ex = Experiment(ingredients=[train_ingredient])
+# Set up database logs
+uri = os.environ.get('MLAB_URI')
+database = os.environ.get('MLAB_DB')
+if all([uri, database]):
+    ex.observers.append(MongoObserver.create(uri, database))
+else:
+    print('Running without Sacred observers')
+
+
+@ex.main
+def main():
+    run_train(enc_dec, optimizer, train_queries, val_queries, test_queries, logger,
+              batch_size=args.batch_size, max_burn_in=args.max_burn_in, val_every=args.val_every,
+              max_iter=args.max_iter, model_file=model_file)
+    torch.save(enc_dec.state_dict(), model_file)
+
+
+# noinspection PyUnusedLocal
+@ex.config
+def config():
+    lr = args.lr
+    readout = args.readout
+    dropout = args.dropout
+    weight_decay = args.weight_decay
+
+
+ex.run()
