@@ -16,8 +16,8 @@ parser.add_argument("--data_dir", type=str, default="./bio_data/")
 parser.add_argument("--lr", type=float, default=0.01)
 parser.add_argument("--depth", type=int, default=0)
 parser.add_argument("--batch_size", type=int, default=512)
-parser.add_argument("--max_iter", type=int, default=220000)
-parser.add_argument("--max_burn_in", type=int, default=160000)
+parser.add_argument("--max_iter", type=int, default=10000000)
+parser.add_argument("--max_burn_in", type=int, default=1000000)
 parser.add_argument("--val_every", type=int, default=5000)
 parser.add_argument("--tol", type=float, default=0.0001)
 parser.add_argument("--cuda", action='store_true')
@@ -29,6 +29,8 @@ parser.add_argument("--inter_decoder", type=str, default="mean")
 parser.add_argument("--opt", type=str, default="adam")
 parser.add_argument("--dropout", type=float, default=0)
 parser.add_argument("--weight_decay", type=float, default=0)
+parser.add_argument("--num_bases", type=int, default=0)
+parser.add_argument("--scatter_op", type=str, default='add')
 args = parser.parse_args()
 
 print(args)
@@ -55,8 +57,8 @@ for i in range(2,4):
     test_queries["full_neg"].update(i_test_queries["full_neg"])
 
 
-enc_dec = RGCNEncoderDecoder(graph, args.embed_dim, args.readout, args.dropout,
-                             args.weight_decay)
+enc_dec = RGCNEncoderDecoder(graph, args.embed_dim, args.num_bases,
+                             args.readout, args.scatter_op, args.dropout, args.weight_decay)
 if args.cuda:
     enc_dec.cuda()
 
@@ -106,6 +108,9 @@ def config():
     readout = args.readout
     dropout = args.dropout
     weight_decay = args.weight_decay
+    max_burn_in = args.max_burn_in
+    num_basis = args.num_bases
+    scatter_op = args.scatter_op
 
 
 @ex.main

@@ -189,7 +189,7 @@ class SoftAndEncoderDecoder(nn.Module):
         return loss 
 
 
-from torch_scatter import scatter_add, scatter_max
+from torch_scatter import scatter_add, scatter_max, scatter_mean, scatter_min
 import torch.nn.functional as F
 from torch_geometric.nn.conv import MessagePassing
 from torch.nn import Parameter as Param
@@ -304,8 +304,8 @@ class RGCNConv(MessagePassing):
 
 
 class RGCNEncoderDecoder(nn.Module):
-    def __init__(self, graph, embed_dim, readout='sum', dropout=0,
-                 weight_decay=1e-3):
+    def __init__(self, graph, embed_dim, num_bases, readout='sum',
+                 scatter_op='add', dropout=0, weight_decay=1e-3):
         super(RGCNEncoderDecoder, self).__init__()
         self.num_entities = sum(map(len, graph.full_sets.values()))
         self.graph = graph
@@ -331,16 +331,28 @@ class RGCNEncoderDecoder(nn.Module):
                 id_rel += 1
 
         self.rgcn = RGCNConv(in_channels=self.emb_dim, out_channels=self.emb_dim,
-                             num_relations=len(graph.rel_edges), num_bases=0)
+                             num_relations=len(graph.rel_edges),
+                             num_bases=num_bases)
+
+        if scatter_op == 'add':
+            scatter_fn = scatter_add
+        elif scatter_op == 'max':
+            scatter_fn = scatter_max
+        elif scatter_op == 'min':
+            scatter_fn = scatter_min
+        elif scatter_op == 'mean':
+            scatter_fn = scatter_mean
+        else:
+            raise ValueError(f'Unknown scatter op {scatter_op}')
 
         if readout == 'sum':
             self.readout = self.sum_readout
         elif readout == 'max':
             self.readout = self.max_readout
         elif readout == 'mlp':
-            self.readout = MLPReadout(self.emb_dim)
+            self.readout = MLPReadout(self.emb_dim, scatter_fn)
         elif readout == 'targetmlp':
-            self.readout = TargetMLPReadout(self.emb_dim)
+            self.readout = TargetMLPReadout(self.emb_dim, scatter_fn)
         else:
             raise ValueError(f'Unknown readout function {readout}')
 
@@ -416,25 +428,27 @@ class RGCNEncoderDecoder(nn.Module):
 
 
 class MLPReadout(nn.Module):
-    def __init__(self, dim):
+    def __init__(self, dim, scatter_fn):
         super(MLPReadout, self).__init__()
         self.layers = nn.Sequential(nn.Linear(in_features=dim, out_features=dim),
                                     nn.ReLU(),
                                     nn.Linear(in_features=dim, out_features=dim),
                                     nn.ReLU())
+        self.scatter_fn = scatter_fn
 
     def forward(self, embs, batch_idx, *args, **kwargs):
         x = self.layers(embs)
-        return scatter_add(x, batch_idx, dim=0)
+        return self.scatter_fn(x, batch_idx, dim=0)
 
 
 class TargetMLPReadout(nn.Module):
-    def __init__(self, dim):
+    def __init__(self, dim, scatter_fn):
         super(TargetMLPReadout, self).__init__()
         self.layers = nn.Sequential(nn.Linear(in_features=2*dim, out_features=dim),
                                     nn.ReLU(),
                                     nn.Linear(in_features=dim, out_features=dim),
                                     nn.ReLU())
+        self.scatter_fn = scatter_fn
 
     def forward(self, embs, batch_idx, batch_size, num_nodes, num_anchors):
         device = embs.device
@@ -454,7 +468,7 @@ class TargetMLPReadout(nn.Module):
         x = x.reshape(batch_size * (num_nodes - 1), -1).contiguous()
 
         x = self.layers(x)
-        return scatter_add(x, batch_idx, dim=0)
+        return self.scatter_fn(x, batch_idx, dim=0)
 
 
 if __name__ == '__main__':

@@ -29,7 +29,8 @@ parser.add_argument("--opt", type=str, default="adam")
 args = parser.parse_args()
 
 print("Loading graph data..")
-graph, feature_modules, node_maps = load_graph(args.data_dir, args.embed_dim)
+graph, feature_modules, node_maps = load_graph(args.data_dir, args.embed_dim,
+                                               create_features=True)
 if args.cuda:
     graph.features = cudify(feature_modules, node_maps)
 out_dims = {mode:args.embed_dim for mode in graph.relations}
@@ -101,9 +102,6 @@ def main():
 @ex.config
 def config():
     lr = args.lr
-    readout = args.readout
-    dropout = args.dropout
-    weight_decay = args.weight_decay
 
 
 ex.run()
