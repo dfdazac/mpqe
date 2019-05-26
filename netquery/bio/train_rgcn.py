@@ -111,6 +111,7 @@ def config():
     max_burn_in = args.max_burn_in
     num_basis = args.num_bases
     scatter_op = args.scatter_op
+    opt = args.opt
 
 
 @ex.main

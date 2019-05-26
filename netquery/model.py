@@ -438,7 +438,13 @@ class MLPReadout(nn.Module):
 
     def forward(self, embs, batch_idx, *args, **kwargs):
         x = self.layers(embs)
-        return self.scatter_fn(x, batch_idx, dim=0)
+        x = self.scatter_fn(x, batch_idx, dim=0)
+
+        # If scatter_fn is max or min, values and indices are returned
+        if isinstance(x, tuple):
+            x = x[0]
+
+        return x
 
 
 class TargetMLPReadout(nn.Module):
@@ -468,7 +474,13 @@ class TargetMLPReadout(nn.Module):
         x = x.reshape(batch_size * (num_nodes - 1), -1).contiguous()
 
         x = self.layers(x)
-        return self.scatter_fn(x, batch_idx, dim=0)
+        x = self.scatter_fn(x, batch_idx, dim=0)
+
+        # If scatter_fn is max or min, values and indices are returned
+        if isinstance(x, tuple):
+            x = x[0]
+
+        return x
 
 
 if __name__ == '__main__':
