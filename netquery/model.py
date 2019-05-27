@@ -340,8 +340,6 @@ class RGCNEncoderDecoder(nn.Module):
             scatter_fn = scatter_add
         elif scatter_op == 'max':
             scatter_fn = scatter_max
-        elif scatter_op == 'min':
-            scatter_fn = scatter_min
         elif scatter_op == 'mean':
             scatter_fn = scatter_mean
         else:
