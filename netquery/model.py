@@ -315,7 +315,8 @@ class RGCNEncoderDecoder(nn.Module):
         #   that implements things like normalization and node aggregation.
         #   See encoders.py
         self.entity_embs = nn.Embedding(self.num_entities, self.emb_dim)
-        self.mode_embeddings = nn.Embedding(len(graph.mode_weights), self.emb_dim)
+        self.mode_embeddings = nn.Embedding(len(graph.mode_weights),
+                                            self.emb_dim)
 
         self.mode_ids = {}
         mode_id = 0
@@ -330,7 +331,8 @@ class RGCNEncoderDecoder(nn.Module):
                 self.rel_ids[rel] = id_rel
                 id_rel += 1
 
-        self.rgcn = RGCNConv(in_channels=self.emb_dim, out_channels=self.emb_dim,
+        self.rgcn = RGCNConv(in_channels=self.emb_dim,
+                             out_channels=self.emb_dim,
                              num_relations=len(graph.rel_edges),
                              num_bases=num_bases)
 
@@ -368,7 +370,8 @@ class RGCNEncoderDecoder(nn.Module):
 
     def forward(self, formula, queries, target_nodes):
         query_graph = RGCNQueryDataset.get_query_graph(formula, queries,
-                                                       self.rel_ids, self.mode_ids)
+                                                       self.rel_ids,
+                                                       self.mode_ids)
         anchor_ids, var_ids, edge_index, edge_type, batch_idx = query_graph
         targets = torch.tensor(target_nodes, dtype=torch.long)
 
@@ -383,7 +386,8 @@ class RGCNEncoderDecoder(nn.Module):
         return self.forward_train(anchor_ids, var_ids, edge_index, edge_type,
                                   batch_idx, targets)
 
-    def forward_train(self, anchor_ids, var_ids, edge_index, edge_type, batch_idx, targets):
+    def forward_train(self, anchor_ids, var_ids, edge_index, edge_type,
+                      batch_idx, targets):
         batch_size = anchor_ids.shape[0]
         n_anchors, n_vars = anchor_ids.shape[1], var_ids.shape[1]
         n_nodes = n_anchors + n_vars
@@ -391,18 +395,19 @@ class RGCNEncoderDecoder(nn.Module):
         anchor_embs = self.entity_embs(anchor_ids)
         var_embs = self.mode_embeddings(var_ids)
         x = torch.cat((anchor_embs, var_embs), dim=1).reshape(-1, self.emb_dim)
+        x = F.normalize(x)
 
         x = F.relu(self.rgcn(x, edge_index, edge_type))
         x = self.dropout(self.rgcn(x, edge_index, edge_type))
         x = self.readout(x, batch_idx, batch_size, n_nodes, n_anchors)
 
-        target_embeds = self.entity_embs(targets)
+        target_embeds = F.normalize(self.entity_embs(targets))
         scores = F.cosine_similarity(x, target_embeds, dim=1)
 
         return scores
 
-    def margin_loss(self, anchor_ids, var_ids, edge_index, edge_type, batch_idx,
-                    targets, neg_targets, margin=1):
+    def margin_loss(self, anchor_ids, var_ids, edge_index, edge_type,
+                    batch_idx, targets, neg_targets, margin=1):
         device = next(self.parameters()).device
         anchor_ids = anchor_ids.to(device)
         var_ids = var_ids.to(device)
@@ -411,13 +416,17 @@ class RGCNEncoderDecoder(nn.Module):
         batch_idx = batch_idx.to(device)
         targets = targets.to(device)
         neg_targets = neg_targets.to(device)
-        affs = self.forward_train(anchor_ids, var_ids, edge_index, edge_type, batch_idx, targets)
-        neg_affs = self.forward_train(anchor_ids, var_ids, edge_index, edge_type, batch_idx, neg_targets)
+
+        affs = self.forward_train(anchor_ids, var_ids, edge_index,
+                                  edge_type, batch_idx, targets)
+        neg_affs = self.forward_train(anchor_ids, var_ids, edge_index,
+                                      edge_type, batch_idx, neg_targets)
+
         loss = margin - (affs - neg_affs)
         loss = torch.clamp(loss, min=0)
         loss = loss.mean()
 
-        if isinstance(self.readout, nn.Module):
+        if isinstance(self.readout, nn.Module) and self.weight_decay > 0:
             l2_reg = 0
             for param in self.readout.parameters():
                 l2_reg += torch.norm(param)
@@ -483,7 +492,7 @@ class TargetMLPReadout(nn.Module):
         return x
 
 
-if __name__ == '__main__':
+def test_tmlp():
     batch_size = 64
     num_nodes = 4
     num_anchors = 2
@@ -494,3 +503,7 @@ if __name__ == '__main__':
     model = TargetMLPReadout(emb_dim)
     out = model(embs, batch_idx, batch_size, num_nodes, num_anchors)
     print(out.shape)
+
+
+if __name__ == '__main__':
+    test_tmlp()
