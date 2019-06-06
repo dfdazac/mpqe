@@ -189,12 +189,123 @@ class SoftAndEncoderDecoder(nn.Module):
         return loss 
 
 
-from torch_geometric.nn import RGCNConv
-from torch_scatter import scatter_add, scatter_max
+from torch_scatter import scatter_add, scatter_max, scatter_mean, scatter_min
 import torch.nn.functional as F
+from torch_geometric.nn.conv import MessagePassing
+from torch.nn import Parameter as Param
+from torch_geometric.nn import inits
+
+
+class RGCNConv(MessagePassing):
+    r"""The relational graph convolutional operator from the `"Modeling
+    Relational Data with Graph Convolutional Networks"
+    <https://arxiv.org/abs/1703.06103>`_ paper
+
+    .. math::
+        \mathbf{x}^{\prime}_i = \mathbf{\Theta}_0 \cdot \mathbf{x}_i +
+        \sum_{r \in \mathcal{R}} \sum_{j \in \mathcal{N}_r(i)}
+        \frac{1}{|\mathcal{N}_r(i)|} \mathbf{\Theta}_r \cdot \mathbf{x}_j,
+
+    where :math:`\mathcal{R}` denotes the set of relations, *i.e.* edge types.
+    Edge type needs to be a one-dimensional :obj:`torch.long` tensor which
+    stores a relation identifier
+    :math:`\in \{ 0, \ldots, |\mathcal{R}| - 1\}` for each edge.
+
+    Args:
+        in_channels (int): Size of each input sample.
+        out_channels (int): Size of each output sample.
+        num_relations (int): Number of relations.
+        num_bases (int): Number of bases used for basis-decomposition.
+        bias (bool, optional): If set to :obj:`False`, the layer will not learn
+            an additive bias. (default: :obj:`True`)
+    """
+
+    def __init__(self,
+                 in_channels,
+                 out_channels,
+                 num_relations,
+                 num_bases,
+                 bias=True):
+        super(RGCNConv, self).__init__('add')
+
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.num_relations = num_relations
+        self.num_bases = num_bases
+
+        if num_bases == 0:
+            self.basis = Param(torch.Tensor(num_relations, in_channels, out_channels))
+            self.att = None
+        else:
+            self.basis = Param(torch.Tensor(num_bases, in_channels, out_channels))
+            self.att = Param(torch.Tensor(num_relations, num_bases))
+        self.root = Param(torch.Tensor(in_channels, out_channels))
+
+        if bias:
+            self.bias = Param(torch.Tensor(out_channels))
+        else:
+            self.register_parameter('bias', None)
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        if self.att is None:
+            size = self.num_relations * self.in_channels
+        else:
+            size = self.num_bases * self.in_channels
+            inits.uniform(size, self.att)
+
+        inits.uniform(size, self.basis)
+        inits.uniform(size, self.root)
+        inits.uniform(size, self.bias)
+
+    def forward(self, x, edge_index, edge_type, edge_norm=None):
+        """"""
+        if x is None:
+            x = torch.arange(
+                edge_index.max().item() + 1,
+                dtype=torch.long,
+                device=edge_index.device)
+
+        return self.propagate(
+            edge_index, x=x, edge_type=edge_type, edge_norm=edge_norm)
+
+    def message(self, x_j, edge_type, edge_norm):
+        if self.att is None:
+            w = self.basis.view(self.num_relations, -1)
+        else:
+            w = torch.matmul(self.att, self.basis.view(self.num_bases, -1))
+
+        if x_j.dtype == torch.long:
+            w = w.view(-1, self.out_channels)
+            index = edge_type * self.in_channels + x_j
+            out = torch.index_select(w, 0, index)
+            return out if edge_norm is None else out * edge_norm.view(-1, 1)
+        else:
+            w = w.view(self.num_relations, self.in_channels, self.out_channels)
+            w = torch.index_select(w, 0, edge_type)
+            out = torch.bmm(x_j.unsqueeze(1), w).squeeze(-2)
+            return out if edge_norm is None else out * edge_norm.view(-1, 1)
+
+    def update(self, aggr_out, x):
+        if x.dtype == torch.long:
+            out = aggr_out + self.root
+        else:
+            out = aggr_out + torch.matmul(x, self.root)
+
+        if self.bias is not None:
+            out = out + self.bias
+        return out
+
+    def __repr__(self):
+        return '{}({}, {}, num_relations={})'.format(
+            self.__class__.__name__, self.in_channels, self.out_channels,
+            self.num_relations)
+
 
 class RGCNEncoderDecoder(nn.Module):
-    def __init__(self, graph, enc, readout='sum'):
+    def __init__(self, graph, enc, readout='sum',
+                 scatter_op='add', dropout=0, weight_decay=1e-3):
         super(RGCNEncoderDecoder, self).__init__()
         self.enc = enc
         self.graph = graph
@@ -214,25 +325,36 @@ class RGCNEncoderDecoder(nn.Module):
                 self.rel_ids[rel] = id_rel
                 id_rel += 1
 
-        # TODO: hparam num_layers
         self.rgcn = RGCNConv(in_channels=self.emb_dim, out_channels=self.emb_dim,
-                             num_relations=len(graph.rel_edges), num_bases=10)
+                             num_relations=len(graph.rel_edges), num_bases=0)
+
+        if scatter_op == 'add':
+            scatter_fn = scatter_add
+        elif scatter_op == 'max':
+            scatter_fn = scatter_max
+        elif scatter_op == 'mean':
+            scatter_fn = scatter_mean
+        else:
+            raise ValueError(f'Unknown scatter op {scatter_op}')
 
         if readout == 'sum':
             self.readout = self.sum_readout
         elif readout == 'max':
             self.readout = self.max_readout
         elif readout == 'mlp':
-            self.readout = MLPReadout(self.emb_dim)
+            self.readout = MLPReadout(self.emb_dim, scatter_fn)
         elif readout == 'targetmlp':
-            self.readout = TargetMLPReadout(self.emb_dim)
+            self.readout = TargetMLPReadout(self.emb_dim, scatter_fn)
         else:
             raise ValueError(f'Unknown readout function {readout}')
 
-    def sum_readout(self, embs, batch_idx):
+        self.dropout = nn.Dropout(dropout)
+        self.weight_decay = weight_decay
+
+    def sum_readout(self, embs, batch_idx, *args, **kwargs):
         return scatter_add(embs, batch_idx, dim=0)
 
-    def max_readout(self, embs, batch_idx):
+    def max_readout(self, embs, batch_idx, *args, **kwargs):
         out, argmax = scatter_max(embs, batch_idx, dim=0)
         return out
 
@@ -250,9 +372,9 @@ class RGCNEncoderDecoder(nn.Module):
 
         batch_size, n_anchors = anchor_ids.shape
         n_vars = var_ids.shape[0]
-        num_nodes = n_anchors + n_vars
+        n_nodes = n_anchors + n_vars
 
-        x = torch.empty(batch_size, num_nodes, self.emb_dim).to(var_ids.device)
+        x = torch.empty(batch_size, n_nodes, self.emb_dim).to(var_ids.device)
         for i, anchor_mode in enumerate(formula.anchor_modes):
             x[:, i] = self.enc(anchor_ids[:, i], anchor_mode).t()
         x[:, n_anchors:] = self.mode_embeddings(var_ids)
@@ -260,8 +382,8 @@ class RGCNEncoderDecoder(nn.Module):
         q_graphs.x = x
 
         out = F.relu(self.rgcn(q_graphs.x, q_graphs.edge_index, q_graphs.edge_type))
-        out = self.rgcn(out, q_graphs.edge_index, q_graphs.edge_type)
-        out = self.readout(out, q_graphs.batch)
+        out = self.dropout(self.rgcn(out, q_graphs.edge_index, q_graphs.edge_type))
+        out = self.readout(out, batch_idx, batch_size, n_nodes, n_anchors)
 
         target_embeds = self.enc(target_nodes, formula.target_mode).t()
         scores = F.cosine_similarity(out, target_embeds, dim=1)
@@ -286,41 +408,53 @@ class RGCNEncoderDecoder(nn.Module):
         loss = margin - (affs - neg_affs)
         loss = torch.clamp(loss, min=0)
         loss = loss.mean()
+
+        if isinstance(self.readout, nn.Module) and self.weight_decay > 0:
+            l2_reg = 0
+            for param in self.readout.parameters():
+                l2_reg += torch.norm(param)
+
+            loss += self.weight_decay * l2_reg
+
         return loss
 
 
 class MLPReadout(nn.Module):
-    def __init__(self, dim):
+    def __init__(self, dim, scatter_fn):
         super(MLPReadout, self).__init__()
         self.layers = nn.Sequential(nn.Linear(in_features=dim, out_features=dim),
                                     nn.ReLU(),
-                                    nn.Linear(in_features=dim, out_features=dim),
-                                    nn.ReLU())
+                                    nn.Linear(in_features=dim, out_features=dim))
+        self.scatter_fn = scatter_fn
 
-    def forward(self, embs, batch_idx):
+    def forward(self, embs, batch_idx, *args, **kwargs):
         x = self.layers(embs)
-        return scatter_add(x, batch_idx, dim=0)
+        x = self.scatter_fn(x, batch_idx, dim=0)
+
+        # If scatter_fn is max or min, values and indices are returned
+        if isinstance(x, tuple):
+            x = x[0]
+
+        return x
 
 
 class TargetMLPReadout(nn.Module):
-    def __init__(self, dim):
+    def __init__(self, dim, scatter_fn):
         super(TargetMLPReadout, self).__init__()
         self.layers = nn.Sequential(nn.Linear(in_features=2*dim, out_features=dim),
                                     nn.ReLU(),
-                                    nn.Linear(in_features=dim, out_features=dim),
-                                    nn.ReLU())
+                                    nn.Linear(in_features=dim, out_features=dim))
+        self.scatter_fn = scatter_fn
 
     def forward(self, embs, batch_idx, batch_size, num_nodes, num_anchors):
         device = embs.device
 
         non_target_idx = torch.ones(num_nodes, dtype=torch.uint8)
         non_target_idx[num_anchors] = 0
-        target_idx = 1 - non_target_idx
         non_target_idx.to(device)
-        target_idx.to(device)
 
-        batch_idx = batch_idx.reshape(num_nodes, -1)
-        batch_idx = batch_idx[non_target_idx].reshape(-1)
+        batch_idx = batch_idx.reshape(batch_size, -1)
+        batch_idx = batch_idx[:, non_target_idx].reshape(-1)
 
         embs = embs.reshape(batch_size, num_nodes, -1)
         non_targets = embs[:, non_target_idx]
@@ -330,7 +464,13 @@ class TargetMLPReadout(nn.Module):
         x = x.reshape(batch_size * (num_nodes - 1), -1).contiguous()
 
         x = self.layers(x)
-        return scatter_add(x, batch_idx, dim=0)
+        x = self.scatter_fn(x, batch_idx, dim=0)
+
+        # If scatter_fn is max or min, values and indices are returned
+        if isinstance(x, tuple):
+            x = x[0]
+
+        return x
 
 
 if __name__ == '__main__':
