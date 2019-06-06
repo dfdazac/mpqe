@@ -1,9 +1,9 @@
 #!/bin/bash
-#SBATCH --job-name=qrgcn_sum
+#SBATCH --job-name=qrgcn_max
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=6
 #SBATCH --ntasks-per-node=1
-#SBATCH --time=20:00:00
+#SBATCH --time=30:00:00
 #SBATCH --mem=60000M
 #SBATCH --partition=gpu_shared
 #SBATCH --gres=gpu:1
@@ -20,7 +20,10 @@ source activate pygeom
 srun python -u -m netquery.bio.train_rgcn \
 --log_dir=$LOG_FOLDER \
 --model_dir=$LOG_FOLDER \
---cuda # \
-# --readout="sum"
+--cuda \
+--lr=0.01 \
+--readout="max" \
+--dropout=0  \
+--weight_decay=0.0
 
 cp -r $TMPDIR/$PROJ_FOLDER/$LOG_FOLDER $HOME/$PROJ_FOLDER

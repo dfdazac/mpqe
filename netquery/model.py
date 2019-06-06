@@ -383,7 +383,7 @@ class RGCNEncoderDecoder(nn.Module):
 
         out = F.relu(self.rgcn(q_graphs.x, q_graphs.edge_index, q_graphs.edge_type))
         out = self.dropout(self.rgcn(out, q_graphs.edge_index, q_graphs.edge_type))
-        out = self.readout(out, batch_idx, batch_size, n_nodes, n_anchors)
+        out = self.readout(out, q_graphs.batch, batch_size, n_nodes, n_anchors)
 
         target_embeds = self.enc(target_nodes, formula.target_mode).t()
         scores = F.cosine_similarity(out, target_embeds, dim=1)

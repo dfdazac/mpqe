@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=qrgcn_sum
+#SBATCH --job-name=qrgcn_targetmlp
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=6
 #SBATCH --ntasks-per-node=1
@@ -22,7 +22,7 @@ srun python -u -m netquery.bio.train_rgcn \
 --model_dir=$LOG_FOLDER \
 --cuda \
 --lr=0.01 \
---readout="sum" \
+--readout="targetmlp" \
 --dropout=0  \
 --weight_decay=0.0
 

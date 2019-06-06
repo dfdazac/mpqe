@@ -1,9 +1,9 @@
 #!/bin/bash
-#SBATCH --job-name=qrgcn_d0_wd_0
+#SBATCH --job-name=qrgcn_mlp
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=6
 #SBATCH --ntasks-per-node=1
-#SBATCH --time=15:00:00
+#SBATCH --time=30:00:00
 #SBATCH --mem=60000M
 #SBATCH --partition=gpu_shared
 #SBATCH --gres=gpu:1
@@ -24,7 +24,6 @@ srun python -u -m netquery.bio.train_rgcn \
 --lr=0.01 \
 --readout="mlp" \
 --dropout=0  \
---weight_decay=0.0 \
---scatter_op="add"
+--weight_decay=0.0
 
 cp -r $TMPDIR/$PROJ_FOLDER/$LOG_FOLDER $HOME/$PROJ_FOLDER
