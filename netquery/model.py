@@ -316,6 +316,7 @@ class RGCNEncoderDecoder(nn.Module):
         mode_id = 0
         for mode in graph.mode_weights:
             self.mode_ids[mode] = mode_id
+            mode_id += 1
 
         self.rel_ids = {}
         id_rel = 0
