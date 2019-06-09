@@ -12,6 +12,7 @@ Our proposal consists of replacing the sequential encoding of the query with a s
 <div align="center">
 <img src='img/qrgcn.png'>
 </div>
+
 ### Requirements
 
 - PyTorch
