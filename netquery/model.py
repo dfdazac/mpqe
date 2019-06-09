@@ -3,7 +3,7 @@ import torch.nn as nn
 
 import random
 from netquery.graph import _reverse_relation
-from .data_utils import RGCNQueryDataset
+from netquery.data_utils import RGCNQueryDataset
 
 EPS = 10e-6
 
@@ -345,16 +345,18 @@ class RGCNEncoderDecoder(nn.Module):
             self.readout = MLPReadout(self.emb_dim, scatter_fn)
         elif readout == 'targetmlp':
             self.readout = TargetMLPReadout(self.emb_dim, scatter_fn)
+        elif readout == 'concat':
+            self.readout = ConcatReadout(self.emb_dim, scatter_fn)
         else:
             raise ValueError(f'Unknown readout function {readout}')
 
         self.dropout = nn.Dropout(dropout)
         self.weight_decay = weight_decay
 
-    def sum_readout(self, embs, batch_idx, *args, **kwargs):
+    def sum_readout(self, embs, batch_idx, **kwargs):
         return scatter_add(embs, batch_idx, dim=0)
 
-    def max_readout(self, embs, batch_idx, *args, **kwargs):
+    def max_readout(self, embs, batch_idx, **kwargs):
         out, argmax = scatter_max(embs, batch_idx, dim=0)
         return out
 
@@ -381,27 +383,37 @@ class RGCNEncoderDecoder(nn.Module):
         x = x.reshape(-1, self.emb_dim)
         q_graphs.x = x
 
-        out = F.relu(self.rgcn(q_graphs.x, q_graphs.edge_index, q_graphs.edge_type))
-        out = self.dropout(self.rgcn(out, q_graphs.edge_index, q_graphs.edge_type))
-        out = self.readout(out, q_graphs.batch, batch_size, n_nodes, n_anchors)
+        h1 = F.relu(self.rgcn(q_graphs.x, q_graphs.edge_index, q_graphs.edge_type))
+
+        if isinstance(self.readout, ConcatReadout):
+            h2 = F.relu(self.rgcn(h1, q_graphs.edge_index, q_graphs.edge_type))
+        else:
+            h2 = self.dropout(self.rgcn(h1, q_graphs.edge_index, q_graphs.edge_type))
+        out = self.readout(embs=h2, batch_idx=q_graphs.batch,
+                           batch_size=batch_size, num_nodes=n_nodes,
+                           num_anchors=n_anchors, prev_h=h1)
 
         target_embeds = self.enc(target_nodes, formula.target_mode).t()
         scores = F.cosine_similarity(out, target_embeds, dim=1)
 
         return scores
 
-    def margin_loss(self, formula, queries, anchor_ids=None, var_ids=None, q_graphs=None,
-                    hard_negatives=False, margin=1):
+    def margin_loss(self, formula, queries, anchor_ids=None, var_ids=None,
+                    q_graphs=None, hard_negatives=False, margin=1):
         if not "inter" in formula.query_type and hard_negatives:
-            raise Exception("Hard negative examples can only be used with intersection queries")
+            raise Exception("Hard negative examples can only be used with "
+                            "intersection queries")
         elif hard_negatives:
-            neg_nodes = [random.choice(query.hard_neg_samples) for query in queries]
+            neg_nodes = [random.choice(query.hard_neg_samples)
+                         for query in queries]
+
         elif formula.query_type == "1-chain":
             neg_nodes = [random.choice(self.graph.full_lists[formula.target_mode]) for _ in queries]
         else:
             neg_nodes = [random.choice(query.neg_samples) for query in queries]
 
-        affs = self.forward(formula, queries, [query.target_node for query in queries],
+        affs = self.forward(formula, queries,
+                            [query.target_node for query in queries],
                             anchor_ids, var_ids, q_graphs)
         neg_affs = self.forward(formula, queries, neg_nodes,
                                 anchor_ids, var_ids, q_graphs)
@@ -422,12 +434,14 @@ class RGCNEncoderDecoder(nn.Module):
 class MLPReadout(nn.Module):
     def __init__(self, dim, scatter_fn):
         super(MLPReadout, self).__init__()
-        self.layers = nn.Sequential(nn.Linear(in_features=dim, out_features=dim),
+        self.layers = nn.Sequential(nn.Linear(in_features=dim,
+                                              out_features=dim),
                                     nn.ReLU(),
-                                    nn.Linear(in_features=dim, out_features=dim))
+                                    nn.Linear(in_features=dim,
+                                              out_features=dim))
         self.scatter_fn = scatter_fn
 
-    def forward(self, embs, batch_idx, *args, **kwargs):
+    def forward(self, embs, batch_idx, **kwargs):
         x = self.layers(embs)
         x = self.scatter_fn(x, batch_idx, dim=0)
 
@@ -438,15 +452,32 @@ class MLPReadout(nn.Module):
         return x
 
 
+class ConcatReadout(nn.Module):
+    def __init__(self, dim, scatter_fn):
+        super(ConcatReadout, self).__init__()
+        self.scatter_fn = scatter_fn
+        self.linear = nn.Linear(in_features=2*dim, out_features=dim)
+
+    def forward(self, embs, batch_idx, prev_h, **kwargs):
+        aggregate_1 = self.scatter_fn(prev_h, batch_idx, dim=0)
+        aggregate_2 = self.scatter_fn(embs, batch_idx, dim=0)
+        out = torch.cat((aggregate_1, aggregate_2), dim=-1)
+        out = self.linear(out)
+        return out
+
+
 class TargetMLPReadout(nn.Module):
     def __init__(self, dim, scatter_fn):
         super(TargetMLPReadout, self).__init__()
-        self.layers = nn.Sequential(nn.Linear(in_features=2*dim, out_features=dim),
+        self.layers = nn.Sequential(nn.Linear(in_features=2*dim,
+                                              out_features=dim),
                                     nn.ReLU(),
-                                    nn.Linear(in_features=dim, out_features=dim))
+                                    nn.Linear(in_features=dim,
+                                              out_features=dim))
         self.scatter_fn = scatter_fn
 
-    def forward(self, embs, batch_idx, batch_size, num_nodes, num_anchors):
+    def forward(self, embs, batch_idx, batch_size, num_nodes, num_anchors,
+                **kwargs):
         device = embs.device
 
         non_target_idx = torch.ones(num_nodes, dtype=torch.uint8)
@@ -473,14 +504,25 @@ class TargetMLPReadout(nn.Module):
         return x
 
 
-if __name__ == '__main__':
+def fn_test_readout(readout_class):
     batch_size = 64
     num_nodes = 4
     num_anchors = 2
     emb_dim = 16
     embs = torch.rand(batch_size * num_nodes, emb_dim)
+    prev_h = torch.rand(batch_size * num_nodes, emb_dim)
     batch_idx = torch.arange(start=0, end=batch_size).unsqueeze(dim=-1)
     batch_idx = batch_idx.expand(-1, num_nodes).reshape(-1)
-    model = TargetMLPReadout(emb_dim)
-    out = model(embs, batch_idx, batch_size, num_nodes, num_anchors)
-    print(out.shape)
+    model = readout_class(emb_dim, scatter_add)
+    out = model(embs=embs, batch_idx=batch_idx, batch_size=batch_size,
+                num_nodes=num_nodes, num_anchors=num_anchors, prev_h=prev_h)
+
+    assert list(out.shape) == [batch_size, emb_dim]
+
+
+def test_target_mlp():
+    fn_test_readout(TargetMLPReadout)
+
+
+def test_concat_readout():
+    fn_test_readout(ConcatReadout)
