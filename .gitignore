@@ -1,7 +1,6 @@
 # Custom
 *.csv
 *.idea
-*.png
 *.pdf
 tmp/
 *.txt
