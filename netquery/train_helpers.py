@@ -1,6 +1,7 @@
 import numpy as np
 from .utils import eval_auc_queries, eval_perc_queries
 from .data_utils import get_queries_iterator
+from .model import RGCNEncoderDecoder, QueryEncoderDecoder
 import torch
 from sacred import Ingredient
 
@@ -54,27 +55,30 @@ def run_eval(model, queries, iteration, logger, by_type=False, _run=None):
 
 @train_ingredient.capture
 def run_train(model, optimizer, train_queries, val_queries, test_queries,
-              logger,
-              max_burn_in=100000, batch_size=512, log_every=500,
-              val_every=1000, tol=1e-6,
-              max_iter=int(10e7), inter_weight=0.005, path_weight=0.01,
-              model_file=None, _run=None):
+              logger, max_burn_in=100000, batch_size=512, log_every=500,
+              val_every=1000, tol=1e-6, max_iter=int(10e7), inter_weight=0.005,
+              path_weight=0.01, model_file=None, _run=None):
     edge_conv = False
     ema_loss = None
     vals = []
     losses = []
     conv_test = None
 
-    train_iterators = {}
-    for query_type in train_queries:
-        queries = train_queries[query_type]
-        train_iterators[query_type] = get_queries_iterator(queries, batch_size, model)
+    if isinstance(model, RGCNEncoderDecoder):
+        train_iterators = {}
+        for query_type in train_queries:
+            queries = train_queries[query_type]
+            train_iterators[query_type] = get_queries_iterator(queries, batch_size, model)
 
     for i in range(max_iter):
         
         optimizer.zero_grad()
-        #loss = run_batch(train_queries["1-chain"], model, i, batch_size)
-        loss = run_batch_v2(train_iterators['1-chain'], model)
+
+        if isinstance(model, RGCNEncoderDecoder):
+            loss = run_batch_v2(train_iterators['1-chain'], model)
+        else:
+            loss = run_batch(train_queries["1-chain"], model, i, batch_size)
+
         if not edge_conv and (check_conv(vals) or len(losses) >= max_burn_in):
             logger.info("Edge converged at iteration {:d}".format(i-1))
             logger.info("Testing at edge conv...")
@@ -92,13 +96,18 @@ def run_train(model, optimizer, train_queries, val_queries, test_queries,
                 if query_type == "1-chain" and max_burn_in > 0:
                     continue
                 if "inter" in query_type:
-                    #loss += inter_weight*run_batch(train_queries[query_type], model, i, batch_size)
-                    loss += inter_weight*run_batch_v2(train_iterators[query_type], model)
-                    #loss += inter_weight*run_batch(train_queries[query_type], model, i, batch_size, hard_negatives=True)
-                    loss += inter_weight * run_batch_v2(train_iterators[query_type], model, hard_negatives=True)
+                    if isinstance(model, RGCNEncoderDecoder):
+                        loss += inter_weight * run_batch_v2(train_iterators[query_type], model)
+                        loss += inter_weight * run_batch_v2(train_iterators[query_type], model, hard_negatives=True)
+                    else:
+                        loss += inter_weight * run_batch(train_queries[query_type], model, i, batch_size)
+                        loss += inter_weight * run_batch(train_queries[query_type], model, i, batch_size, hard_negatives=True)
                 else:
-                    #loss += path_weight*run_batch(train_queries[query_type], model, i, batch_size)
-                    loss += path_weight * run_batch_v2(train_iterators[query_type], model)
+                    if isinstance(model, RGCNEncoderDecoder):
+                        loss += path_weight * run_batch_v2(train_iterators[query_type], model)
+                    else:
+                        loss += path_weight * run_batch(train_queries[query_type], model, i, batch_size)
+
             if check_conv(vals):
                     logger.info("Fully converged at iteration {:d}".format(i))
                     break
