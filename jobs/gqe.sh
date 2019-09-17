@@ -17,7 +17,7 @@ cd $TMPDIR/$PROJ_FOLDER
 
 # Run experiment
 source activate pygeom
-srun python -u -m netquery.bio.train_rgcn \
+srun python -u -m netquery.bio.train \
 --model="gqe" \
 --decoder="bilinear" \
 --log_dir=$LOG_FOLDER \
