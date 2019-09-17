@@ -24,6 +24,7 @@ srun python -u -m netquery.bio.train_rgcn \
 --lr=0.01 \
 --readout="sum" \
 --dropout=0  \
---weight_decay=0.0
+--weight_decay=0.0 \
+--num_passes=3
 
 cp -r $TMPDIR/$PROJ_FOLDER/$LOG_FOLDER $HOME/$PROJ_FOLDER

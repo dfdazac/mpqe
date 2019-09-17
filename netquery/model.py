@@ -305,12 +305,15 @@ class RGCNConv(MessagePassing):
 
 class RGCNEncoderDecoder(nn.Module):
     def __init__(self, graph, enc, readout='sum',
-                 scatter_op='add', dropout=0, weight_decay=1e-3):
+                 scatter_op='add', dropout=0, weight_decay=1e-3,
+                 num_passes=2):
         super(RGCNEncoderDecoder, self).__init__()
         self.enc = enc
         self.graph = graph
         self.emb_dim = graph.feature_dims[next(iter(graph.feature_dims))]
-        self.mode_embeddings = nn.Embedding(len(graph.mode_weights), self.emb_dim)
+        self.mode_embeddings = nn.Embedding(len(graph.mode_weights),
+                                            self.emb_dim)
+        self.num_passes = num_passes
 
         self.mode_ids = {}
         mode_id = 0
@@ -365,10 +368,11 @@ class RGCNEncoderDecoder(nn.Module):
                 anchor_ids=None, var_ids=None, q_graphs=None):
 
         if anchor_ids is None or var_ids is None or q_graphs is None:
-            anchor_ids, var_ids, q_graphs = RGCNQueryDataset.get_query_graph(formula,
-                                                                          queries,
-                                                                          self.rel_ids,
-                                                                          self.mode_ids)
+            query_data = RGCNQueryDataset.get_query_graph(formula, queries,
+                                                          self.rel_ids,
+                                                          self.mode_ids)
+            anchor_ids, var_ids, q_graphs = query_data
+
         device = next(self.parameters()).device
         var_ids = var_ids.to(device)
         q_graphs = q_graphs.to(device)
@@ -384,12 +388,15 @@ class RGCNEncoderDecoder(nn.Module):
         x = x.reshape(-1, self.emb_dim)
         q_graphs.x = x
 
-        h1 = F.relu(self.rgcn(q_graphs.x, q_graphs.edge_index, q_graphs.edge_type))
+        h1 = q_graphs.x
+        for i in range(self.num_passes - 1):
+            h1 = F.relu(self.rgcn(h1, q_graphs.edge_index, q_graphs.edge_type))
 
         if isinstance(self.readout, ConcatReadout):
-            h2 = F.relu(self.rgcn(h1, q_graphs.edge_index, q_graphs.edge_type))
+            h2 = F.relu(h1)
         else:
-            h2 = self.dropout(self.rgcn(h1, q_graphs.edge_index, q_graphs.edge_type))
+            h2 = self.dropout(h1)
+
         out = self.readout(embs=h2, batch_idx=q_graphs.batch,
                            batch_size=batch_size, num_nodes=n_nodes,
                            num_anchors=n_anchors, prev_h=h1)

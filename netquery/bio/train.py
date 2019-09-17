@@ -15,6 +15,7 @@ parser.add_argument("--model", type=str, default="qrgcn")
 parser.add_argument("--embed_dim", type=int, default=128)
 parser.add_argument("--data_dir", type=str, default="./bio_data/")
 parser.add_argument("--lr", type=float, default=0.01)
+parser.add_argument("--num_passes", type=int, default=2)
 parser.add_argument("--depth", type=int, default=0)
 parser.add_argument("--batch_size", type=int, default=512)
 parser.add_argument("--max_iter", type=int, default=10000000)
@@ -59,7 +60,8 @@ enc = get_encoder(args.depth, graph, out_dims, feature_modules, args.cuda)
 
 if args.model == 'qrgcn':
     enc_dec = RGCNEncoderDecoder(graph, enc, args.readout, args.scatter_op,
-                                 args.dropout, args.weight_decay)
+                                 args.dropout, args.weight_decay,
+                                 args.num_passes)
 elif args.model == 'gqe':
     dec = get_metapath_decoder(graph,
                                enc.out_dims if args.depth > 0 else out_dims,
@@ -113,6 +115,7 @@ else:
 def config():
     model = args.model
     lr = args.lr
+    num_passes = args.num_passes
     readout = args.readout
     dropout = args.dropout
     weight_decay = args.weight_decay
