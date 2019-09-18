@@ -7,37 +7,64 @@ import rdflib as rdf
 from urllib import parse
 import pickle
 
+
+class RDVPDataset(Entities):
+    def __init__(self, root, name):
+        assert name in ['AIFB', 'AM', 'MUTAG', 'BGS']
+        self.name = name.lower()
+        super(Entities, self).__init__(root, name)
+
+    def process(self):
+        pass
+
+
+DATASET_TYPES = {'AIFB': ['http://swrc.ontoware.org/ontology#Publication',
+                          'http://swrc.ontoware.org/ontology#Person',
+                          'http://swrc.ontoware.org/ontology#Topic',
+                          'http://swrc.ontoware.org/ontology#Organization']}
+
+
 ex = Experiment()
 
-
+# TODO: Consider using a regular Python CLI
 @ex.config
 def config():
     data_dir = './'
     name = 'AIFB'
 
 
-def get_entity_type(entity_uri: str):
-    ent_type = 'literal'
-    if entity_uri.startswith('http://'):
-        if entity_uri.endswith('instance'):
-            uri = parse.urlparse(entity_uri)
-            ent_type = uri.scheme + '://' + uri.netloc + osp.dirname(uri.path)
-        else:
-            ent_type = entity_uri
+def extract_entities(graph: rdf.Graph, name):
+    query_str = """
+        PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+        SELECT ?entity
+        WHERE {{
+            ?entity rdf:type <{0}>
+        }}"""
 
-    return ent_type
+    node_maps = {}
+    types = DATASET_TYPES[name]
+    for ent_type in types:
+        node_maps[ent_type] = set()
+        query = query_str.format(ent_type)
+        query_results = graph.query(query)
+        for row in query_results:
+            node_maps[ent_type].add(row.entity)
+
+    return node_maps
 
 
 @ex.command(unobserved=True)
 def extract_graph_data(data_dir, name):
     # Load graph
     data_path = osp.join(data_dir, name)
-    dataset = Entities(data_path, name)
+    dataset = RDVPDataset(data_path, name)
 
     graph_file, *_ = dataset.raw_paths
-    rdf_graph = rdf.Graph()
+    graph = rdf.Graph()
     with gzip.open(graph_file, 'rb') as f:
-        rdf_graph.parse(file=f, format='nt')
+        graph.parse(file=f, format='nt')
+
+    node_maps = extract_entities(graph, name)
 
     entity_ids = defaultdict(lambda: len(entity_ids))
     entity_types = dict()
@@ -45,12 +72,12 @@ def extract_graph_data(data_dir, name):
 
     rels = defaultdict(set)
     adj_lists = defaultdict(lambda: defaultdict(set))
-    node_maps = defaultdict(set)
 
     Entity = namedtuple('Entity', ['id', 'ent_type'])
 
     print('Processing graph...')
-    for subj, pred, obj in rdf_graph.triples((None, None, None)):
+    for subj, pred, obj in graph.triples((None, None, None)):
+        # print('', subj, '\n', pred, '\n', obj, '\n' + '-'*100)
         rel = str(pred)
         relations.add(rel)
 
@@ -78,10 +105,10 @@ def extract_graph_data(data_dir, name):
     node_maps = {ent_type: list(node_maps[ent_type]) for ent_type in node_maps}
 
     # Save to disk
-    graph = (rels, adj_lists, node_maps)
+    graph_data = (rels, adj_lists, node_maps)
     graph_path = osp.join(data_path, 'processed', 'graph_data.pkl')
     file = open(graph_path, 'wb')
-    pickle.dump(graph, file, protocol=pickle.HIGHEST_PROTOCOL)
+    pickle.dump(graph_data, file, protocol=pickle.HIGHEST_PROTOCOL)
 
     num_edges = 0
     for triple in adj_lists:
