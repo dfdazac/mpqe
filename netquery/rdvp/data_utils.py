@@ -1,3 +1,4 @@
+from functools import reduce
 from collections import defaultdict, namedtuple
 from torch_geometric.datasets import Entities
 from sacred import Experiment
@@ -36,7 +37,10 @@ def extract_entity_types(types_folder):
             file_path = osp.join(types_folder, file)
             node_maps[ent_type] = set(open(file_path).read().splitlines())
 
-    # TODO: assert that all sets are disjoint
+    # Assert that all sets of typed entities are disjoint
+    typed_entities = sum(map(len, node_maps.values()))
+    unique_entities = len(reduce(lambda x, y: x.union(y), node_maps.values()))
+    assert typed_entities == unique_entities
 
     return node_maps
 
@@ -62,34 +66,41 @@ def extract_graph_data(data_dir, name):
         graph.parse(file=f, format='nt')
 
     # Extract entities of predefined types, listed in .csv files
-    node_maps = extract_entity_types(osp.join(data_path, 'processed'))
+    type_entities = extract_entity_types(osp.join(data_path, 'processed'))
 
     entity_ids = defaultdict(lambda: len(entity_ids))
-    entity_types = dict()
     relations = set()
 
     rels = defaultdict(set)
     adj_lists = defaultdict(lambda: defaultdict(set))
-
-    Entity = namedtuple('Entity', ['id', 'ent_type'])
+    node_maps = defaultdict(set)
 
     print('Extracting triples...')
     for subj, pred, obj in graph.triples((None, None, None)):
-        subj_type = get_entity_type(node_maps, str(subj))
-        obj_type = get_entity_type(node_maps, str(obj))
+        subj_type = get_entity_type(type_entities, str(subj))
+        obj_type = get_entity_type(type_entities, str(obj))
 
         # Add only triples involving extracted entities (i.e. with known type)
         if all([subj_type, obj_type]):
-            # FIXME: keys in node_maps should be int IDs, not strings!
-            subject_ent = Entity(entity_ids[subj], subj_type)
-            object_ent = Entity(entity_ids[obj], obj_type)
-
             rel = str(pred)
-            relations.add(rel)
 
-            rels[subject_ent.ent_type].add((object_ent.ent_type, rel))
-            triple = (subject_ent.ent_type, rel, object_ent.ent_type)
-            adj_lists[triple][subject_ent.id].add(object_ent.id)
+            if name == 'AIFB':
+                # Discard redundant relations
+                if rel == 'http://swrc.ontoware.org/ontology#publication':
+                    rel = 'http://swrc.ontoware.org/ontology#author'
+                    subj, obj = obj, subj
+                    subj_type, obj_type = obj_type, subj_type
+
+            relations.add(rel)
+            subj_id = entity_ids[subj]
+            obj_id = entity_ids[obj]
+
+            node_maps[subj_type].add(subj_id)
+            node_maps[obj_type].add(obj_id)
+
+            rels[subj_type].add((obj_type, rel))
+            triple = (subj_type, rel, obj_type)
+            adj_lists[triple][subj_id].add(obj_id)
 
     # Convert rels to dict of list
     rels = {ent_type: list(rels[ent_type]) for ent_type in rels.keys()}
@@ -109,8 +120,10 @@ def extract_graph_data(data_dir, name):
         for ent_id in adj_lists[triple]:
             num_edges += len(adj_lists[triple][ent_id])
 
+    num_entities = sum(map(len, node_maps.values()))
+
     print(f'Saved graph to {graph_path} with statistics:')
-    print(f'  {len(entity_types):d} entities')
+    print(f'  {num_entities:d} entities')
     print(f'  {len(node_maps):d} entity types')
     print(f'  {num_edges:d} edges')
     print(f'  {len(relations):d} edge types')
