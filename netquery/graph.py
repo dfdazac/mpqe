@@ -460,7 +460,14 @@ class Graph():
             return self.meta_neighs[rels][node]
         current_set = [node]
         for rel in rels:
-            current_set = set([neigh for n in current_set for neigh in self.adj_lists[rel][n]])
+            new_set = set()
+            for n in current_set:
+                # For small graphs, n might not have such neighbors
+                if n in self.adj_lists[rel]:
+                    new_set = new_set.union(self.adj_lists[rel][n])
+
+            current_set = new_set
+
         self.meta_neighs[rels][node] = current_set
         return current_set
 
