@@ -79,7 +79,7 @@ def parallel_sample_worker(pid, num_samples, graph, data_dir, is_test, test_edge
     pickle.dump([q.serialize() for q in queries_3], open(data_dir + "/queries_3-{:d}.pkl".format(pid), "wb"), protocol=pickle.HIGHEST_PROTOCOL)
 
 def parallel_sample(graph, num_workers, samples_per_worker, data_dir, test=False, start_ind=None):
-    if test:
+    if not test:
         print("Loading test/val data..")
         test_edges = load_queries(data_dir + "/test_edges.pkl")
         val_edges = load_queries(data_dir + "/val_edges.pkl")
