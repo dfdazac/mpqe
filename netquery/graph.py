@@ -338,7 +338,7 @@ class Graph():
                 rel, neigh = random.choice(self.flat_adj_lists[mode][node])
                 edge = (node, rel, neigh)
                 next_query = self.sample_query_subgraph_bytype(
-                    "2-chain" if q_type == "3-chain" else "2-inter", start_node=(neigh, rel[0]))
+                    "2-chain" if q_type == "3-chain" else "2-inter", start_node=(neigh, rel[-1]))
                 if next_query is None:
                     return None
                 if next_query[0] == "2-chain":
@@ -406,7 +406,7 @@ class Graph():
             if num_edges == 1:
                 rel, neigh = random.choice(self.flat_adj_lists[mode][node])
                 edge = (node, rel, neigh)
-                next_query = self.sample_query_subgraph(2, start_node=(neigh, rel[0]))
+                next_query = self.sample_query_subgraph(2, start_node=(neigh, rel[-1]))
                 if next_query is None:
                     return None
                 if next_query[0] == "2-chain":
