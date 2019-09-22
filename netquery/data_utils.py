@@ -95,6 +95,7 @@ def parallel_sample(graph, num_workers, samples_per_worker, data_dir, test=False
     queries_2 = []
     queries_3 = []
     for i in range(num_workers):
+        # TODO: remove generated files
         new_queries_2 = load_queries(data_dir+"/queries_2-{:d}.pkl".format(i), keep_graph=True)
         queries_2.extend(new_queries_2)
         new_queries_3 = load_queries(data_dir+"/queries_3-{:d}.pkl".format(i), keep_graph=True)

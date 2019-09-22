@@ -1,9 +1,8 @@
 import pickle as pickle
 import torch
-from collections import OrderedDict, defaultdict
-from multiprocessing import Process
 import random
-import json
+import os.path as osp
+from multiprocessing import cpu_count
 
 from netquery.data_utils import parallel_sample, load_queries_by_type, sample_clean_test
 from netquery.graph import Graph, Query, _reverse_edge
@@ -33,9 +32,9 @@ def sample_new_clean(data_dir):
     graph_loader = lambda : load_graph(data_dir, 10)[0]
     sample_clean_test(graph_loader, data_dir)
 
-def clean_test():
-    test_edges = pickle.load(open("/dfs/scratch0/nqe-bio/test_edges.pkl", "rb"))
-    val_edges = pickle.load(open("/dfs/scratch0/nqe-bio/val_edges.pkl", "rb"))
+def clean_test(data_dir):
+    test_edges = pickle.load(open(osp.join(data_dir, 'test_edges.pkl'), "rb"))
+    val_edges = pickle.load(open(osp.join(data_dir, '/val_edges.pkl'), "rb"))
     deleted_edges = set([q[0][1] for q in test_edges] + [_reverse_edge(q[0][1]) for q in test_edges] +
                 [q[0][1] for q in val_edges] + [_reverse_edge(q[0][1]) for q in val_edges])
 
@@ -45,13 +44,13 @@ def clean_test():
                 to_keep = 1000
             else:
                 to_keep = 10000
-            test_queries = load_queries_by_type("/dfs/scratch0/nqe-bio/{:s}_queries_{:d}-split.pkl".format(kind, i), keep_graph=True)
+            test_queries = load_queries_by_type(data_dir+"/{:s}_queries_{:d}-newclean.pkl".format(kind, i), keep_graph=True)
             print("Loaded", i, kind)
             for query_type in test_queries:
                 test_queries[query_type] = [q for q in test_queries[query_type] if len(q.get_edges().intersection(deleted_edges)) > 0]
                 test_queries[query_type] = test_queries[query_type][:to_keep]
             test_queries = [q.serialize() for queries in list(test_queries.values()) for q in queries]
-            pickle.dump(test_queries, open("/dfs/scratch0/nqe-bio/{:s}_queries_{:d}-clean.pkl".format(kind, i), "wb"), protocol=pickle.HIGHEST_PROTOCOL)
+            pickle.dump(test_queries, open(data_dir+"/{:s}_queries_{:d}-clean.pkl".format(kind, i), "wb"), protocol=pickle.HIGHEST_PROTOCOL)
             print("Finished", i, kind)
 
 
@@ -66,19 +65,19 @@ def make_train_test_edge_data(data_dir):
     print("Getting negative samples...")
     val_test_edge_negsamples = [graph.get_negative_edge_samples(e, 100) for e in val_test_edges]
     print("Making and storing test queries.")
-    val_test_edge_queries = [Query(("1-chain", val_test_edges[i]), val_test_edge_negsamples[i], None, 100) for i in range(split_point)]
+    val_test_edge_queries = [Query(("1-chain", val_test_edges[i]), val_test_edge_negsamples[i], None, 100, True) for i in range(split_point)]
     val_split_point = int(0.1*len(val_test_edge_queries))
     val_queries = val_test_edge_queries[:val_split_point]
     test_queries = val_test_edge_queries[val_split_point:]
-    pickle.dump([q.serialize() for q in val_queries], open(data_dir+"/val_edges.pkl", "w"), protocol=pickle.HIGHEST_PROTOCOL)
-    pickle.dump([q.serialize() for q in test_queries], open(data_dir+"/test_edges.pkl", "w"), protocol=pickle.HIGHEST_PROTOCOL)
+    pickle.dump([q.serialize() for q in val_queries], open(data_dir+"/val_edges.pkl", "wb"), protocol=pickle.HIGHEST_PROTOCOL)
+    pickle.dump([q.serialize() for q in test_queries], open(data_dir+"/test_edges.pkl", "wb"), protocol=pickle.HIGHEST_PROTOCOL)
 
     print("Removing test edges...")
     graph.remove_edges(val_test_edges)
     print("Making and storing train queries.")
     train_edges = graph.get_all_edges()
-    train_queries = [Query(("1-chain", e), None, None) for e in train_edges]
-    pickle.dump([q.serialize() for q in train_queries], open(data_dir+"/train_edges.pkl", "w"), protocol=pickle.HIGHEST_PROTOCOL)
+    train_queries = [Query(("1-chain", e), None, None, keep_graph=True) for e in train_edges]
+    pickle.dump([q.serialize() for q in train_queries], open(data_dir+"/train_edges.pkl", "wb"), protocol=pickle.HIGHEST_PROTOCOL)
 
 def _discard_negatives(file_name, small_prop=0.9):
     queries = pickle.load(open(file_name, "rb"))
@@ -97,16 +96,13 @@ def discard_negatives(data_dir):
 
 def make_train_test_query_data(data_dir):
     graph, _, _ = load_graph(data_dir, 10)
-    queries_2, queries_3 = parallel_sample(graph, 20, 50000, data_dir, test=False)
-    t_queries_2, t_queries_3 = parallel_sample(graph, 20, 5000, data_dir, test=True)
-    t_queries_2 = list(set(t_queries_2) - set(queries_2))
-    t_queries_3 = list(set(t_queries_3) - set(queries_3))
+    num_samples = 1e6
+    num_workers = cpu_count()
+    samples_per_worker = num_samples // num_workers
+    queries_2, queries_3 = parallel_sample(graph, num_workers, samples_per_worker, data_dir, test=False)
+
     pickle.dump([q.serialize() for q in queries_2], open(data_dir + "/train_queries_2.pkl", "wb"), protocol=pickle.HIGHEST_PROTOCOL)
     pickle.dump([q.serialize() for q in queries_3], open(data_dir + "/train_queries_3.pkl", "wb"), protocol=pickle.HIGHEST_PROTOCOL)
-    pickle.dump([q.serialize() for q in t_queries_2[10000:]], open(data_dir + "/test_queries_2.pkl", "wb"), protocol=pickle.HIGHEST_PROTOCOL)
-    pickle.dump([q.serialize() for q in t_queries_3[10000:]], open(data_dir + "/test_queries_3.pkl", "wb"), protocol=pickle.HIGHEST_PROTOCOL)
-    pickle.dump([q.serialize() for q in t_queries_2[:10000]], open(data_dir + "/val_queries_2.pkl", "wb"), protocol=pickle.HIGHEST_PROTOCOL)
-    pickle.dump([q.serialize() for q in t_queries_3[:10000]], open(data_dir + "/val_queries_3.pkl", "wb"), protocol=pickle.HIGHEST_PROTOCOL)
 
 
 if __name__ == "__main__":
