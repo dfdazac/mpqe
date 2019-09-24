@@ -3,6 +3,7 @@ import torch
 import random
 import os.path as osp
 from multiprocessing import cpu_count
+from collections import Counter
 
 from netquery.data_utils import parallel_sample, load_queries_by_type, sample_clean_test
 from netquery.graph import Graph, Query, _reverse_edge
@@ -44,13 +45,17 @@ def clean_test(data_dir):
                 to_keep = 1000
             else:
                 to_keep = 10000
-            test_queries = load_queries_by_type(data_dir+"/{:s}_queries_{:d}-newclean.pkl".format(kind, i), keep_graph=True)
+            test_queries = load_queries_by_type(data_dir+"/{:s}_queries_{:d}.pkl".format(kind, i), keep_graph=True)
             print("Loaded", i, kind)
             for query_type in test_queries:
                 test_queries[query_type] = [q for q in test_queries[query_type] if len(q.get_edges().intersection(deleted_edges)) > 0]
                 test_queries[query_type] = test_queries[query_type][:to_keep]
             test_queries = [q.serialize() for queries in list(test_queries.values()) for q in queries]
-            pickle.dump(test_queries, open(data_dir+"/{:s}_queries_{:d}-clean.pkl".format(kind, i), "wb"), protocol=pickle.HIGHEST_PROTOCOL)
+
+            print(f'Done making {i:d}-{kind} queries:')
+            print_query_stats(test_queries)
+
+            pickle.dump(test_queries, open(data_dir+"/{:s}_queries_{:d}.pkl".format(kind, i), "wb"), protocol=pickle.HIGHEST_PROTOCOL)
             print("Finished", i, kind)
 
 
@@ -94,12 +99,26 @@ def discard_negatives(data_dir):
         _discard_negatives(data_dir + "/test_queries_{:d}.pkl".format(i))
 
 
+def print_query_stats(queries):
+    counts = Counter()
+    for q in queries:
+        q_type = q[0][0]
+        counts[q_type] += 1
+
+    for q_type in counts:
+        print(f'\t{q_type}: {counts[q_type]}')
+
+
 def make_train_test_query_data(data_dir):
     graph, _, _ = load_graph(data_dir, 10)
     num_samples = 1e6
     num_workers = cpu_count()
     samples_per_worker = num_samples // num_workers
     queries_2, queries_3 = parallel_sample(graph, num_workers, samples_per_worker, data_dir, test=False)
+
+    print('Done making training queries:')
+    print_query_stats(queries_2)
+    print_query_stats(queries_3)
 
     pickle.dump([q.serialize() for q in queries_2], open(data_dir + "/train_queries_2.pkl", "wb"), protocol=pickle.HIGHEST_PROTOCOL)
     pickle.dump([q.serialize() for q in queries_3], open(data_dir + "/train_queries_3.pkl", "wb"), protocol=pickle.HIGHEST_PROTOCOL)
