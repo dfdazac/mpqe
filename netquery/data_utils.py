@@ -6,6 +6,8 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 from .graph import _reverse_relation
 import numpy as np
+import os.path as osp
+import os
 
 def load_queries(data_file, keep_graph=False):
     raw_info = pickle.load(open(data_file, "rb"))
@@ -56,10 +58,10 @@ def sample_clean_test(graph_loader, data_dir):
     val_queries_3.extend(test_graph.sample_test_queries(train_graph, ["3-chain", "3-inter", "3-inter_chain", "3-chain_inter"], 100, 1000))
     val_queries_3 = list(set(val_queries_3)-set(test_queries_3))
     print(len(val_queries_3))
-    pickle.dump([q.serialize() for q in test_queries_2], open(data_dir + "/test_queries_2-newclean.pkl", "wb"), protocol=pickle.HIGHEST_PROTOCOL)
-    pickle.dump([q.serialize() for q in test_queries_3], open(data_dir + "/test_queries_3-newclean.pkl", "wb"), protocol=pickle.HIGHEST_PROTOCOL)
-    pickle.dump([q.serialize() for q in val_queries_2], open(data_dir + "/val_queries_2-newclean.pkl", "wb"), protocol=pickle.HIGHEST_PROTOCOL)
-    pickle.dump([q.serialize() for q in val_queries_3], open(data_dir + "/val_queries_3-newclean.pkl", "wb"), protocol=pickle.HIGHEST_PROTOCOL)
+    pickle.dump([q.serialize() for q in test_queries_2], open(data_dir + "/test_queries_2.pkl", "wb"), protocol=pickle.HIGHEST_PROTOCOL)
+    pickle.dump([q.serialize() for q in test_queries_3], open(data_dir + "/test_queries_3.pkl", "wb"), protocol=pickle.HIGHEST_PROTOCOL)
+    pickle.dump([q.serialize() for q in val_queries_2], open(data_dir + "/val_queries_2.pkl", "wb"), protocol=pickle.HIGHEST_PROTOCOL)
+    pickle.dump([q.serialize() for q in val_queries_3], open(data_dir + "/val_queries_3.pkl", "wb"), protocol=pickle.HIGHEST_PROTOCOL)
 
         
 def clean_test(train_queries, test_queries):
@@ -95,10 +97,13 @@ def parallel_sample(graph, num_workers, samples_per_worker, data_dir, test=False
     queries_2 = []
     queries_3 = []
     for i in range(num_workers):
-        # TODO: remove generated files
-        new_queries_2 = load_queries(data_dir+"/queries_2-{:d}.pkl".format(i), keep_graph=True)
+        queries_2_file = osp.join(data_dir, "/queries_2-{:d}.pkl".format(i))
+        new_queries_2 = load_queries(queries_2_file, keep_graph=True)
+        os.remove(queries_2_file)
         queries_2.extend(new_queries_2)
-        new_queries_3 = load_queries(data_dir+"/queries_3-{:d}.pkl".format(i), keep_graph=True)
+        queries_3_file = osp.join(data_dir, "/queries_3-{:d}.pkl".format(i))
+        os.remove(queries_3_file)
+        new_queries_3 = load_queries(queries_3_file, keep_graph=True)
         queries_3.extend(new_queries_3)
     return queries_2, queries_3
 
