@@ -13,7 +13,7 @@ ex = Experiment()
 # TODO: Consider using a regular Python CLI
 @ex.config
 def config():
-    data_dir = './aifbc/'
+    data_dir = './aifb/'
 
 
 def extract_entity_types(types_folder):
@@ -62,10 +62,6 @@ def get_entity_type(node_maps, entity):
     return ent_type
 
 
-def defaultdict_set_factory():
-    return defaultdict(set)
-
-
 @ex.command(unobserved=True)
 def preprocess_graph(data_dir):
     """Read RDF triples and a list of csv files mapping entities to their
@@ -85,7 +81,7 @@ def preprocess_graph(data_dir):
     relations = set()
 
     rels = defaultdict(set)
-    adj_lists = defaultdict(defaultdict_set_factory)
+    adj_lists = dict()
     node_maps = defaultdict(set)
 
     print('Extracting triples...')
@@ -106,8 +102,17 @@ def preprocess_graph(data_dir):
             # Add edge and its inverse
             rels[subj_type].add((obj_type, rel))
             rels[obj_type].add((subj_type, rel))
-            adj_lists[(subj_type, rel, obj_type)][subj_id].add(obj_id)
-            adj_lists[(obj_type, rel, subj_type)][obj_id].add(subj_id)
+
+            triple = (subj_type, rel, obj_type)
+            triple_inv = (obj_type, rel, subj_type)
+
+            if triple not in adj_lists:
+                adj_lists[triple] = defaultdict(set)
+            if triple_inv not in adj_lists:
+                adj_lists[triple_inv] = defaultdict(set)
+
+            adj_lists[triple][subj_id].add(obj_id)
+            adj_lists[triple_inv][obj_id].add(subj_id)
 
     # Convert rels to dict of list
     rels = {ent_type: list(rels[ent_type]) for ent_type in rels.keys()}
