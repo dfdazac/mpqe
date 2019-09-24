@@ -13,11 +13,12 @@ ex = Experiment()
 # TODO: Consider using a regular Python CLI
 @ex.config
 def config():
-    data_dir = './'
-    name = 'aifbc'
+    data_dir = './aifbc/'
 
 
 def extract_entity_types(types_folder):
+    """Build a dictionary mapping entity types to entities, by reading CSV
+    files from a directory. Each CSV file corresponds to a type."""
     node_maps = {}
 
     for file in os.listdir(types_folder):
@@ -34,7 +35,24 @@ def extract_entity_types(types_folder):
     return node_maps
 
 
+def get_triples_file(directory):
+    """Look for an .nt file in the given directory. Note: only the first file
+    found (if any) is returned."""
+
+    filename = None
+    for file in os.listdir(directory):
+        if file.endswith('.nt'):
+            filename = file
+            break
+
+    if filename is None:
+        raise FileNotFoundError(f'No .nt files found in {directory}')
+
+    return filename
+
+
 def get_entity_type(node_maps, entity):
+    """Given an entity ID (int), retrieve its type."""
     ent_type = None
     for t in node_maps:
         if entity in node_maps[t]:
@@ -49,14 +67,19 @@ def defaultdict_set_factory():
 
 
 @ex.command(unobserved=True)
-def extract_graph_data(data_dir, name):
+def preprocess_graph(data_dir):
+    """Read RDF triples and a list of csv files mapping entities to their
+    types, and store a subgraph containing only entities of known types.
+    """
+
     # Load graph
-    data_path = osp.join(data_dir, name)
+    nt_file = get_triples_file(data_dir)
     graph = rdf.Graph()
-    graph.parse(osp.join(data_path, f'{name}.nt'), format='nt')
+    print(f'Loading graph from {nt_file}...')
+    graph.parse(osp.join(data_dir, nt_file), format='nt')
 
     # Extract entities of predefined types, listed in .csv files
-    type_entities = extract_entity_types(data_path)
+    type_entities = extract_entity_types(data_dir)
 
     entity_ids = defaultdict(lambda: len(entity_ids))
     relations = set()
@@ -93,7 +116,7 @@ def extract_graph_data(data_dir, name):
 
     # Save to disk
     graph_data = (rels, adj_lists, node_maps)
-    graph_path = osp.join(data_path, 'graph_data.pkl')
+    graph_path = osp.join(data_dir, 'graph_data.pkl')
     file = open(graph_path, 'wb')
     pickle.dump(graph_data, file, protocol=pickle.HIGHEST_PROTOCOL)
 
@@ -112,27 +135,11 @@ def extract_graph_data(data_dir, name):
 
 
 @ex.command(unobserved=True)
-def make_train_test_edges(data_dir, name):
-    data_path = osp.join(data_dir, name)
-    utils.make_train_test_edge_data(data_path)
-
-
-@ex.command(unobserved=True)
-def make_train_queries(data_dir, name):
-    data_path = osp.join(data_dir, name)
-    utils.make_train_test_query_data(data_path)
-
-
-@ex.command(unobserved=True)
-def make_test_queries(data_dir, name):
-    data_path = osp.join(data_dir, name)
-    utils.sample_new_clean(data_path)
-
-
-@ex.command(unobserved=True)
-def clean_test_queries(data_dir, name):
-    data_path = osp.join(data_dir, name)
-    utils.clean_test(data_path)
+def make_queries(data_dir):
+    utils.make_train_test_edge_data(data_dir)
+    utils.make_train_test_query_data(data_dir)
+    utils.sample_new_clean(data_dir)
+    utils.clean_test(data_dir)
 
 
 if __name__ == '__main__':

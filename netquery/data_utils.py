@@ -97,14 +97,16 @@ def parallel_sample(graph, num_workers, samples_per_worker, data_dir, test=False
     queries_2 = []
     queries_3 = []
     for i in range(num_workers):
-        queries_2_file = osp.join(data_dir, "/queries_2-{:d}.pkl".format(i))
+        queries_2_file = osp.join(data_dir, "queries_2-{:d}.pkl".format(i))
         new_queries_2 = load_queries(queries_2_file, keep_graph=True)
         os.remove(queries_2_file)
         queries_2.extend(new_queries_2)
-        queries_3_file = osp.join(data_dir, "/queries_3-{:d}.pkl".format(i))
-        os.remove(queries_3_file)
+
+        queries_3_file = osp.join(data_dir, "queries_3-{:d}.pkl".format(i))
         new_queries_3 = load_queries(queries_3_file, keep_graph=True)
+        os.remove(queries_3_file)
         queries_3.extend(new_queries_3)
+
     return queries_2, queries_3
 
 

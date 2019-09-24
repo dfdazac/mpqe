@@ -35,7 +35,7 @@ def sample_new_clean(data_dir):
 
 def clean_test(data_dir):
     test_edges = pickle.load(open(osp.join(data_dir, 'test_edges.pkl'), "rb"))
-    val_edges = pickle.load(open(osp.join(data_dir, '/val_edges.pkl'), "rb"))
+    val_edges = pickle.load(open(osp.join(data_dir, 'val_edges.pkl'), "rb"))
     deleted_edges = set([q[0][1] for q in test_edges] + [_reverse_edge(q[0][1]) for q in test_edges] +
                 [q[0][1] for q in val_edges] + [_reverse_edge(q[0][1]) for q in val_edges])
 
@@ -50,14 +50,13 @@ def clean_test(data_dir):
             for query_type in test_queries:
                 test_queries[query_type] = [q for q in test_queries[query_type] if len(q.get_edges().intersection(deleted_edges)) > 0]
                 test_queries[query_type] = test_queries[query_type][:to_keep]
-            test_queries = [q.serialize() for queries in list(test_queries.values()) for q in queries]
 
             print(f'Done making {i:d}-{kind} queries:')
-            print_query_stats(test_queries)
+            for q_type in test_queries:
+                print(f'\t{q_type}: {len(test_queries[q_type])}')
 
+            test_queries = [q.serialize() for queries in list(test_queries.values()) for q in queries]
             pickle.dump(test_queries, open(data_dir+"/{:s}_queries_{:d}.pkl".format(kind, i), "wb"), protocol=pickle.HIGHEST_PROTOCOL)
-            print("Finished", i, kind)
-
 
 
 def make_train_test_edge_data(data_dir):
@@ -102,7 +101,7 @@ def discard_negatives(data_dir):
 def print_query_stats(queries):
     counts = Counter()
     for q in queries:
-        q_type = q[0][0]
+        q_type = q.formula.query_type
         counts[q_type] += 1
 
     for q_type in counts:
