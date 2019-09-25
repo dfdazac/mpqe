@@ -109,3 +109,5 @@ ENV/
 *.p
 
 output/
+notebooks/
+*.nt

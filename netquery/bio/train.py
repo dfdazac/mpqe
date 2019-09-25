@@ -13,7 +13,7 @@ from torch import optim
 parser = ArgumentParser()
 parser.add_argument("--model", type=str, default="qrgcn")
 parser.add_argument("--embed_dim", type=int, default=128)
-parser.add_argument("--data_dir", type=str, default="./bio_data/")
+parser.add_argument("--data_dir", type=str, default="../rdvp/aifb/")
 parser.add_argument("--lr", type=float, default=0.01)
 parser.add_argument("--num_passes", type=int, default=2)
 parser.add_argument("--depth", type=int, default=0)
@@ -81,8 +81,8 @@ elif args.opt == "adam":
     optimizer = optim.Adam([p for p in enc_dec.parameters() if p.requires_grad],
                            lr=args.lr)
 
-fname = "/{data:s}{depth:d}-{embed_dim:d}-{lr:f}-{model}-{readout}."
-log_file = args.log_dir + fname + "log".format(
+fname = "{data:s}{depth:d}-{embed_dim:d}-{lr:f}-{model}-{decoder}-{readout}."
+log_file = (args.log_dir + fname + "log").format(
         data=args.data_dir.strip().split("/")[-1],
         depth=args.depth,
         embed_dim=args.embed_dim,
@@ -90,7 +90,7 @@ log_file = args.log_dir + fname + "log".format(
         decoder=args.decoder,
         model=args.model,
         readout=args.readout)
-model_file = args.model_dir + fname + "pt".format(
+model_file = (args.model_dir + fname + "pt").format(
         data=args.data_dir.strip().split("/")[-1],
         depth=args.depth,
         embed_dim=args.embed_dim,

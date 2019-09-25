@@ -83,17 +83,20 @@ def make_train_test_edge_data(data_dir):
     train_queries = [Query(("1-chain", e), None, None, keep_graph=True) for e in train_edges]
     pickle.dump([q.serialize() for q in train_queries], open(data_dir+"/train_edges.pkl", "wb"), protocol=pickle.HIGHEST_PROTOCOL)
 
-def _discard_negatives(file_name, small_prop=0.9):
+
+def _discard_negatives(file_name, prob=0.9):
+    """Discard all but one negative sample for each query, with probability
+    prob"""
     queries = pickle.load(open(file_name, "rb"))
-#    queries = [q if random.random() > small_prop else (q[0],[random.choice(tuple(q[1]))], None if q[2] is None else [random.choice(tuple(q[2]))]) for q in queries]
-    queries = [q if random.random() > small_prop else (q[0],[random.choice(list(q[1]))], None if q[2] is None else [random.choice(list(q[2]))]) for q in queries]
-    pickle.dump(queries, open(file_name.split(".")[0] + "-split.pkl", "wb"), protocol=pickle.HIGHEST_PROTOCOL)
+    queries = [q if random.random() > prob else (q[0], [random.choice(list(q[1]))], None if q[2] is None else [random.choice(list(q[2]))]) for q in queries]
+    pickle.dump(queries, open(file_name, "wb"), protocol=pickle.HIGHEST_PROTOCOL)
     print("Finished", file_name)
+
 
 def discard_negatives(data_dir):
     _discard_negatives(data_dir + "/val_edges.pkl")
     _discard_negatives(data_dir + "/test_edges.pkl")
-    for i in range(2,4):
+    for i in range(2, 4):
         _discard_negatives(data_dir + "/val_queries_{:d}.pkl".format(i))
         _discard_negatives(data_dir + "/test_queries_{:d}.pkl".format(i))
 

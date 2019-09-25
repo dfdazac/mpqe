@@ -239,6 +239,7 @@ class RGCNQueryDataset(QueryDataset):
 
         edge_data = Data(edge_index=edge_index)
         edge_data.edge_type = edge_type
+        edge_data.num_nodes = n_anchors + len(var_idx)
         graph = Batch.from_data_list([edge_data for i in range(batch_size)])
 
         return (torch.tensor(anchor_ids, dtype=torch.long),

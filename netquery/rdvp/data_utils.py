@@ -145,6 +145,7 @@ def make_queries(data_dir):
     utils.make_train_test_query_data(data_dir)
     utils.sample_new_clean(data_dir)
     utils.clean_test(data_dir)
+    utils.discard_negatives(data_dir)
 
 
 if __name__ == '__main__':
