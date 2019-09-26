@@ -11,9 +11,9 @@ from sacred.observers import MongoObserver
 from torch import optim
 
 parser = ArgumentParser()
-parser.add_argument("--model", type=str, default="qrgcn")
+parser.add_argument("--model", type=str, default="gqe")
 parser.add_argument("--embed_dim", type=int, default=128)
-parser.add_argument("--data_dir", type=str, default="../rdvp/aifb/")
+parser.add_argument("--data_dir", type=str, default="./aifb/")
 parser.add_argument("--lr", type=float, default=0.01)
 parser.add_argument("--num_passes", type=int, default=2)
 parser.add_argument("--depth", type=int, default=0)
@@ -25,7 +25,7 @@ parser.add_argument("--tol", type=float, default=0.0001)
 parser.add_argument("--cuda", action='store_true')
 parser.add_argument("--log_dir", type=str, default="./")
 parser.add_argument("--model_dir", type=str, default="./")
-parser.add_argument("--decoder", type=str, default="rgcn")
+parser.add_argument("--decoder", type=str, default="bilinear")
 parser.add_argument("--readout", type=str, default="sum")
 parser.add_argument("--inter_decoder", type=str, default="mean")
 parser.add_argument("--opt", type=str, default="adam")
@@ -123,6 +123,7 @@ def config():
     num_basis = args.num_bases
     scatter_op = args.scatter_op
     opt = args.opt
+    data_dir = args.data_dir
 
 
 @ex.main

@@ -389,7 +389,7 @@ class RGCNEncoderDecoder(nn.Module):
         q_graphs.x = x
 
         h1 = q_graphs.x
-        for i in range(self.num_passes - 1):
+        for i in range(self.num_passes):
             h1 = F.relu(self.rgcn(h1, q_graphs.edge_index, q_graphs.edge_type))
 
         if isinstance(self.readout, ConcatReadout):

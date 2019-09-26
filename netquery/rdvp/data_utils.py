@@ -10,10 +10,10 @@ import netquery.bio.data_utils as utils
 
 ex = Experiment()
 
-# TODO: Consider using a regular Python CLI
+
 @ex.config
 def config():
-    data_dir = './aifb/'
+    data_dir = '../bio/aifb/'
 
 
 def extract_entity_types(types_folder):
@@ -91,7 +91,9 @@ def preprocess_graph(data_dir):
 
         # Add only triples involving extracted entities (i.e. with known type)
         if all([subj_type, obj_type]):
-            rel = str(pred)
+            # Remove period from relations as they cannot occur in parameter
+            # names in PyTorch
+            rel = str(pred).replace('.', '')
             relations.add(rel)
             subj_id = entity_ids[subj]
             obj_id = entity_ids[obj]
