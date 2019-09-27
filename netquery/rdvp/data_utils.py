@@ -1,6 +1,9 @@
 from functools import reduce
 from collections import defaultdict
 from sacred import Experiment
+from torch_geometric.datasets import Entities
+import pandas as pd
+import numpy as np
 import os
 import os.path as osp
 import rdflib as rdf
@@ -13,7 +16,17 @@ ex = Experiment()
 
 @ex.config
 def config():
-    data_dir = '../bio/aifb/'
+    name = 'AIFB'
+
+
+class RDVPDataset(Entities):
+    def __init__(self, root, name):
+        assert name in ['AIFB', 'AM', 'MUTAG', 'BGS']
+        self.name = name.lower()
+        super(Entities, self).__init__(root, name)
+
+    def process(self):
+        pass
 
 
 def extract_entity_types(types_folder):
@@ -38,7 +51,6 @@ def extract_entity_types(types_folder):
 def get_triples_file(directory):
     """Look for an .nt file in the given directory. Note: only the first file
     found (if any) is returned."""
-
     filename = None
     for file in os.listdir(directory):
         if file.endswith('.nt'):
@@ -63,19 +75,26 @@ def get_entity_type(node_maps, entity):
 
 
 @ex.command(unobserved=True)
-def preprocess_graph(data_dir):
+def download_graph(name):
+    RDVPDataset(name, name)
+
+
+@ex.command(unobserved=True)
+def preprocess_graph(name):
     """Read RDF triples and a list of csv files mapping entities to their
     types, and store a subgraph containing only entities of known types.
     """
+    raw_dir = osp.join(name, 'raw')
+    out_dir = osp.join(name, 'processed')
 
     # Load graph
-    nt_file = get_triples_file(data_dir)
+    nt_file = get_triples_file(raw_dir)
     graph = rdf.Graph()
     print(f'Loading graph from {nt_file}...')
-    graph.parse(osp.join(data_dir, nt_file), format='nt')
+    graph.parse(osp.join(raw_dir, nt_file), format='nt')
 
     # Extract entities of predefined types, listed in .csv files
-    type_entities = extract_entity_types(data_dir)
+    type_entities = extract_entity_types(out_dir)
 
     entity_ids = defaultdict(lambda: len(entity_ids))
     relations = set()
@@ -86,8 +105,10 @@ def preprocess_graph(data_dir):
 
     print('Extracting triples...')
     for subj, pred, obj in graph.triples((None, None, None)):
-        subj_type = get_entity_type(type_entities, str(subj))
-        obj_type = get_entity_type(type_entities, str(obj))
+        subj = str(subj)
+        obj = str(obj)
+        subj_type = get_entity_type(type_entities, subj)
+        obj_type = get_entity_type(type_entities, obj)
 
         # Add only triples involving extracted entities (i.e. with known type)
         if all([subj_type, obj_type]):
@@ -120,10 +141,12 @@ def preprocess_graph(data_dir):
     rels = {ent_type: list(rels[ent_type]) for ent_type in rels.keys()}
     # Convert node_maps to dict of list
     node_maps = {ent_type: list(node_maps[ent_type]) for ent_type in node_maps}
+    # Lock dictionary with entity IDs
+    entity_ids = dict(entity_ids)
 
     # Save to disk
     graph_data = (rels, adj_lists, node_maps)
-    graph_path = osp.join(data_dir, 'graph_data.pkl')
+    graph_path = osp.join(out_dir, 'graph_data.pkl')
     file = open(graph_path, 'wb')
     pickle.dump(graph_data, file, protocol=pickle.HIGHEST_PROTOCOL)
 
@@ -140,9 +163,54 @@ def preprocess_graph(data_dir):
     print(f'  {num_edges:d} edges')
     print(f'  {len(relations):d} edge types')
 
+    # Save label data for classification
+    if name == 'AM':
+        label_header = 'label_cateogory'
+        nodes_header = 'proxy'
+    elif name == 'AIFB':
+        label_header = 'label_affiliation'
+        nodes_header = 'person'
+    elif name == 'MUTAG':
+        label_header = 'label_mutagenic'
+        nodes_header = 'bond'
+    elif name == 'BGS':
+        label_header = 'label_lithogenesis'
+        nodes_header = 'rock'
+
+    labels_df = pd.read_csv(osp.join(raw_dir, 'completeDataset.tsv'), sep='\t')
+    labels_set = set(labels_df[label_header].values.tolist())
+    labels_dict = {lab: i for i, lab in enumerate(list(labels_set))}
+
+    train_labels_df = pd.read_csv(osp.join(raw_dir, 'trainingSet.tsv'), sep='\t')
+    train_indices, train_labels = [], []
+    for nod, lab in zip(train_labels_df[nodes_header].values,
+                        train_labels_df[label_header].values):
+        if nod in entity_ids:
+            train_indices.append(entity_ids[nod])
+            train_labels.append(labels_dict[lab])
+
+    train_idx = np.array(train_indices, dtype=np.int)
+    train_y = np.array(train_labels, dtype=np.int)
+    train_labels = np.column_stack((train_idx, train_y))
+    np.save(osp.join(out_dir, 'train_labels'), train_labels)
+
+    test_labels_df = pd.read_csv(osp.join(raw_dir, 'testSet.tsv'), sep='\t')
+    test_indices, test_labels = [], []
+    for nod, lab in zip(test_labels_df[nodes_header].values,
+                        test_labels_df[label_header].values):
+        if nod in entity_ids:
+            test_indices.append(entity_ids[nod])
+            test_labels.append(labels_dict[lab])
+
+    test_idx = np.array(test_indices, dtype=np.int)
+    test_y = np.array(test_labels, dtype=np.int)
+    test_labels = np.column_stack((test_idx, test_y))
+    np.save(osp.join(out_dir, 'test_labels'), test_labels)
+
 
 @ex.command(unobserved=True)
-def make_queries(data_dir):
+def make_queries(name):
+    data_dir = osp.join(name, 'processed')
     utils.make_train_test_edge_data(data_dir)
     utils.make_train_test_query_data(data_dir)
     utils.sample_new_clean(data_dir)
