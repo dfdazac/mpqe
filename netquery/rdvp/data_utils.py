@@ -185,9 +185,9 @@ def preprocess_graph(name):
     train_indices, train_labels = [], []
     for nod, lab in zip(train_labels_df[nodes_header].values,
                         train_labels_df[label_header].values):
-        if nod in entity_ids:
-            train_indices.append(entity_ids[nod])
-            train_labels.append(labels_dict[lab])
+        assert nod in entity_ids
+        train_indices.append(entity_ids[nod])
+        train_labels.append(labels_dict[lab])
 
     train_idx = np.array(train_indices, dtype=np.int)
     train_y = np.array(train_labels, dtype=np.int)
@@ -198,9 +198,9 @@ def preprocess_graph(name):
     test_indices, test_labels = [], []
     for nod, lab in zip(test_labels_df[nodes_header].values,
                         test_labels_df[label_header].values):
-        if nod in entity_ids:
-            test_indices.append(entity_ids[nod])
-            test_labels.append(labels_dict[lab])
+        assert nod in entity_ids
+        test_indices.append(entity_ids[nod])
+        test_labels.append(labels_dict[lab])
 
     test_idx = np.array(test_indices, dtype=np.int)
     test_y = np.array(test_labels, dtype=np.int)

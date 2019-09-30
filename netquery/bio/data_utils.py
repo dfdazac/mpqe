@@ -65,11 +65,28 @@ def make_train_test_edge_data(data_dir):
     print("Getting all edges...")
     edges = graph.get_all_edges()
     split_point = int(0.1*len(edges))
-    val_test_edges = edges[:split_point]
-    print("Getting negative samples...")
+    val_test_edges_all = edges[:split_point]
+    val_test_edges = []
+    print("Getting test negative samples...")
+    val_test_edge_negsamples = []
+    non_neg_edges = set()
+
+    for e in val_test_edges_all:
+        neg_samples = graph.get_negative_edge_samples(e, 100)
+        # In some special cases there might not be any valid negative samples,
+        # for instance for the edge (topic, rdf:type, class): since all
+        # topics are of type Topic (a class), there are no entities of type
+        # topic *not* related to the class Topic through the type relationship.
+        if len(neg_samples) > 0:
+            val_test_edges.append(e)
+            val_test_edge_negsamples.append(neg_samples)
+        elif e[1] not in non_neg_edges:
+            non_neg_edges.add(e[1])
+            print('Omitting edges of type', e[1])
+
     val_test_edge_negsamples = [graph.get_negative_edge_samples(e, 100) for e in val_test_edges]
     print("Making and storing test queries.")
-    val_test_edge_queries = [Query(("1-chain", val_test_edges[i]), val_test_edge_negsamples[i], None, 100, True) for i in range(split_point)]
+    val_test_edge_queries = [Query(("1-chain", val_test_edges[i]), val_test_edge_negsamples[i], None, 100, True) for i in range(len(val_test_edges))]
     val_split_point = int(0.1*len(val_test_edge_queries))
     val_queries = val_test_edge_queries[:val_split_point]
     test_queries = val_test_edge_queries[val_split_point:]
