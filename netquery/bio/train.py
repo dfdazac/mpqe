@@ -1,19 +1,22 @@
 import os
+import os.path as osp
+import pickle as pkl
+import numpy as np
 from argparse import ArgumentParser
-from netquery.utils import *
+import netquery.utils as utils
 from netquery.bio.data_utils import load_graph
 from netquery.data_utils import load_queries_by_formula, load_test_queries_by_formula
 from netquery.model import RGCNEncoderDecoder, QueryEncoderDecoder
 from netquery.train_helpers import train_ingredient, run_train
 from sacred import Experiment
 from sacred.observers import MongoObserver
-
+import torch
 from torch import optim
 
 parser = ArgumentParser()
 parser.add_argument("--model", type=str, default="gqe")
 parser.add_argument("--embed_dim", type=int, default=128)
-parser.add_argument("--data_dir", type=str, default="./aifb/")
+parser.add_argument("--data_dir", type=str, default="../rdvp/AIFB/processed/")
 parser.add_argument("--lr", type=float, default=0.01)
 parser.add_argument("--num_passes", type=int, default=2)
 parser.add_argument("--depth", type=int, default=0)
@@ -38,7 +41,7 @@ args = parser.parse_args()
 print("Loading graph data..")
 graph, feature_modules, node_maps = load_graph(args.data_dir, args.embed_dim)
 if args.cuda:
-    graph.features = cudify(feature_modules, node_maps)
+    graph.features = utils.cudify(feature_modules, node_maps)
 out_dims = {mode:args.embed_dim for mode in graph.relations}
 
 print("Loading edge data..")
@@ -56,17 +59,17 @@ for i in range(2, 4):
     test_queries["one_neg"].update(i_test_queries["one_neg"])
     test_queries["full_neg"].update(i_test_queries["full_neg"])
 
-enc = get_encoder(args.depth, graph, out_dims, feature_modules, args.cuda)
+enc = utils.get_encoder(args.depth, graph, out_dims, feature_modules, args.cuda)
 
 if args.model == 'qrgcn':
     enc_dec = RGCNEncoderDecoder(graph, enc, args.readout, args.scatter_op,
                                  args.dropout, args.weight_decay,
                                  args.num_passes)
 elif args.model == 'gqe':
-    dec = get_metapath_decoder(graph,
-                               enc.out_dims if args.depth > 0 else out_dims,
-                               args.decoder)
-    inter_dec = get_intersection_decoder(graph, out_dims, args.inter_decoder)
+    dec = utils.get_metapath_decoder(graph,
+                                     enc.out_dims if args.depth > 0 else out_dims,
+                                     args.decoder)
+    inter_dec = utils.get_intersection_decoder(graph, out_dims, args.inter_decoder)
     enc_dec = QueryEncoderDecoder(graph, enc, dec, inter_dec)
 else:
     raise ValueError(f'Unknown model {args.model}')
@@ -98,7 +101,7 @@ model_file = (args.model_dir + fname + "pt").format(
         decoder=args.decoder,
         model=args.model,
         readout=args.readout)
-logger = setup_logging(log_file)
+logger = utils.setup_logging(log_file)
 
 ex = Experiment(ingredients=[train_ingredient])
 # Set up database logs
@@ -127,13 +130,31 @@ def config():
 
 
 @ex.main
-def main():
+def main(data_dir, _run):
     run_train(enc_dec, optimizer, train_queries, val_queries, test_queries,
               logger, batch_size=args.batch_size, max_burn_in=args.max_burn_in,
               val_every=args.val_every, max_iter=args.max_iter,
               model_file=model_file)
 
-    torch.save(enc_dec.state_dict(), model_file)
+    # Export embeddings for node classification
+    entity_ids_path = osp.join(data_dir, 'entity_ids.pkl')
+    if osp.exists(entity_ids_path):
+        entity_ids = pkl.load(open(entity_ids_path, 'rb'))
+        embeddings = np.zeros((len(entity_ids), 1 + args.embed_dim))
+
+        for i, ent_id in enumerate(entity_ids.values()):
+            for mode in enc_dec.graph.full_sets:
+                if ent_id in enc_dec.graph.full_sets[mode]:
+                    embeddings[i, 0] = ent_id
+                    id_tensor = torch.tensor([ent_id])
+                    emb = enc_dec.enc(id_tensor, mode).detach().cpu().numpy()
+                    embeddings[i, 1:] = emb.reshape(-1)
+
+        # Save embeddings as artifact and remove from local storage
+        emb_fname = 'embeddings.npy'
+        np.save(emb_fname, embeddings)
+        _run.add_artifact(emb_fname, emb_fname)
+        os.remove(emb_fname)
 
 
 ex.run()
