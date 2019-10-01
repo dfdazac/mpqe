@@ -3,11 +3,10 @@ from collections import defaultdict
 from sacred import Experiment
 from torch_geometric.datasets import Entities
 import pandas as pd
-import numpy as np
 import os
 import os.path as osp
 import rdflib as rdf
-import pickle
+import pickle as pkl
 
 import netquery.bio.data_utils as utils
 
@@ -90,13 +89,19 @@ def preprocess_graph(name):
     # Load graph
     nt_file = get_triples_file(raw_dir)
     graph = rdf.Graph()
-    print(f'Loading graph from {nt_file}...')
+    print(f'Loading graph from {osp.join(raw_dir, nt_file)}...')
     graph.parse(osp.join(raw_dir, nt_file), format='nt')
 
     # Extract entities of predefined types, listed in .csv files
     type_entities = extract_entity_types(out_dir)
 
-    entity_ids = defaultdict(lambda: len(entity_ids))
+    entity_ids_path = osp.join(out_dir, 'entity_ids.pkl')
+    if osp.exists(entity_ids_path):
+        print(f'Loaded entity_ids from {entity_ids_path}...')
+        entity_ids = pkl.load(open(entity_ids_path, 'rb'))
+    else:
+        entity_ids = defaultdict(lambda: len(entity_ids))
+
     relations = set()
 
     rels = defaultdict(set)
@@ -116,8 +121,14 @@ def preprocess_graph(name):
             # names in PyTorch
             rel = str(pred).replace('.', '')
             relations.add(rel)
-            subj_id = entity_ids[subj]
-            obj_id = entity_ids[obj]
+
+            try:
+                subj_id = entity_ids[subj]
+                obj_id = entity_ids[obj]
+            except KeyError:
+                raise ValueError(f'Could not map entity to an ID.\n'
+                                 f'Consider deleting {entity_ids_path}'
+                                 f'to create map from scratch.')
 
             node_maps[subj_type].add(subj_id)
             node_maps[obj_type].add(obj_id)
@@ -143,12 +154,14 @@ def preprocess_graph(name):
     node_maps = {ent_type: list(node_maps[ent_type]) for ent_type in node_maps}
     # Lock dictionary with entity IDs
     entity_ids = dict(entity_ids)
+    pkl.dump(entity_ids, open(osp.join(out_dir, 'entity_ids.pkl'), 'wb'),
+             protocol=pkl.HIGHEST_PROTOCOL)
 
     # Save to disk
     graph_data = (rels, adj_lists, node_maps)
     graph_path = osp.join(out_dir, 'graph_data.pkl')
     file = open(graph_path, 'wb')
-    pickle.dump(graph_data, file, protocol=pickle.HIGHEST_PROTOCOL)
+    pkl.dump(graph_data, file, protocol=pkl.HIGHEST_PROTOCOL)
 
     num_edges = 0
     for triple in adj_lists:
@@ -157,7 +170,7 @@ def preprocess_graph(name):
 
     num_entities = sum(map(len, node_maps.values()))
 
-    print(f'Saved graph to {graph_path} with statistics:')
+    print(f'Saved graph data to {graph_path} with statistics:')
     print(f'  {num_entities:d} entities')
     print(f'  {len(node_maps):d} entity types')
     print(f'  {num_edges:d} edges')
@@ -182,30 +195,24 @@ def preprocess_graph(name):
     labels_dict = {lab: i for i, lab in enumerate(list(labels_set))}
 
     train_labels_df = pd.read_csv(osp.join(raw_dir, 'trainingSet.tsv'), sep='\t')
-    train_indices, train_labels = [], []
-    for nod, lab in zip(train_labels_df[nodes_header].values,
-                        train_labels_df[label_header].values):
-        assert nod in entity_ids
-        train_indices.append(entity_ids[nod])
-        train_labels.append(labels_dict[lab])
+    train_labels = {}
+    for node, label in zip(train_labels_df[nodes_header].values,
+                           train_labels_df[label_header].values):
+        assert node in entity_ids
+        train_labels[entity_ids[node]] = labels_dict[label]
 
-    train_idx = np.array(train_indices, dtype=np.int)
-    train_y = np.array(train_labels, dtype=np.int)
-    train_labels = np.column_stack((train_idx, train_y))
-    np.save(osp.join(out_dir, 'train_labels'), train_labels)
+    pkl.dump(train_labels, open(osp.join(out_dir, 'train_labels.pkl'), 'wb'),
+             protocol=pkl.HIGHEST_PROTOCOL)
 
     test_labels_df = pd.read_csv(osp.join(raw_dir, 'testSet.tsv'), sep='\t')
-    test_indices, test_labels = [], []
-    for nod, lab in zip(test_labels_df[nodes_header].values,
-                        test_labels_df[label_header].values):
-        assert nod in entity_ids
-        test_indices.append(entity_ids[nod])
-        test_labels.append(labels_dict[lab])
+    test_labels = {}
+    for node, label in zip(test_labels_df[nodes_header].values,
+                           test_labels_df[label_header].values):
+        assert node in entity_ids
+        test_labels[entity_ids[node]] = labels_dict[label]
 
-    test_idx = np.array(test_indices, dtype=np.int)
-    test_y = np.array(test_labels, dtype=np.int)
-    test_labels = np.column_stack((test_idx, test_y))
-    np.save(osp.join(out_dir, 'test_labels'), test_labels)
+    pkl.dump(test_labels, open(osp.join(out_dir, 'test_labels.pkl'), 'wb'),
+             protocol=pkl.HIGHEST_PROTOCOL)
 
 
 @ex.command(unobserved=True)
