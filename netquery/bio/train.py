@@ -16,7 +16,7 @@ from torch import optim
 parser = ArgumentParser()
 parser.add_argument("--model", type=str, default="gqe")
 parser.add_argument("--embed_dim", type=int, default=128)
-parser.add_argument("--data_dir", type=str, default="../rdvp/AIFB/processed/")
+parser.add_argument("--data_dir", type=str, default="./AIFB/processed/")
 parser.add_argument("--lr", type=float, default=0.01)
 parser.add_argument("--num_passes", type=int, default=2)
 parser.add_argument("--depth", type=int, default=0)

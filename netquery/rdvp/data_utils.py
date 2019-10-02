@@ -13,6 +13,7 @@ import netquery.bio.data_utils as utils
 ex = Experiment()
 
 
+# noinspection PyUnusedLocal
 @ex.config
 def config():
     name = 'AIFB'
