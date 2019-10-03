@@ -26,7 +26,8 @@ def update_loss(loss, losses, ema_loss, ema_alpha=0.01):
 
 @train_ingredient.capture
 @torch.no_grad()
-def run_eval(model, queries, iteration, logger, by_type=False, _run=None):
+def run_eval(model, queries, iteration, logger, batch_size=128, by_type=False,
+             _run=None):
     model.eval()
     vals = {}
     def _print_by_rel(rel_aucs, logger):
@@ -34,7 +35,7 @@ def run_eval(model, queries, iteration, logger, by_type=False, _run=None):
             logger.info(str(rels) + "\t" + str(auc))
     for query_type in queries["one_neg"]:
         auc, rel_aucs = eval_auc_queries(queries["one_neg"][query_type], model)
-        perc = eval_perc_queries(queries["full_neg"][query_type], model)
+        perc = eval_perc_queries(queries["full_neg"][query_type], model, batch_size)
         vals[query_type] = auc
         logger.info("{:s} val AUC: {:f} val perc {:f}; iteration: {:d}".format(query_type, auc, perc, iteration))
         _run.log_scalar(f'{query_type}_val_auc', auc, iteration)
@@ -127,7 +128,7 @@ def run_train(model, optimizer, train_queries, val_queries, test_queries,
             else:
                 vals.append(v["1-chain"])
     
-    v = run_eval(model, test_queries, i, logger)
+    v = run_eval(model, test_queries, i, logger, batch_size=64)
     test_avg_auc = np.mean(list(v.values()))
     logger.info("Test macro-averaged val: {:f}".format(test_avg_auc))
     _run.log_scalar('test_auc', test_avg_auc, 0)
