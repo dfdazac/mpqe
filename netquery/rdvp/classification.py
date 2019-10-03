@@ -14,12 +14,22 @@ ex = Experiment()
 @ex.config
 def config():
     data_dir = 'AIFB'
-    experiment_id = '33'
+    experiment_id = '34'
     random_splits = False
     num_runs = 1
 
 
 def make_train_test_data(embs, train_labels, test_labels):
+    """Given an array with node IDs and their embeddings, create training and
+    test splits for the node classification task.
+
+    Args:
+        embs: array of shape (N, d + 1) where N is the number of nodes and
+            d the dimension of the embeddings. The first column contains the
+            node ID.
+        train_labels: dict, mapping node ID to label
+        test_labels: dict
+    """
     emb_dim = embs.shape[1] - 1
 
     # Create training data
@@ -49,6 +59,8 @@ def make_train_test_data(embs, train_labels, test_labels):
 
 @ex.automain
 def run_classifier(data_dir, experiment_id, random_splits, num_runs, _log):
+    """Train a node classifier, given pretrained node embeddings.
+    Performance is reported with the accuracy score."""
     data_dir = osp.join(data_dir, 'processed')
     embs_dir = osp.join(data_dir,
                         f'artifacts-{experiment_id}',
@@ -62,9 +74,11 @@ def run_classifier(data_dir, experiment_id, random_splits, num_runs, _log):
                                                             train_labels,
                                                             test_labels)
 
-    scores = np.empty(num_runs)
+    test_scores = np.empty(num_runs)
+    train_scores = np.empty(num_runs)
     for i in tqdm(range(num_runs)):
         if random_splits:
+            # Merge existing splits and create new ones
             x = np.concatenate((x_train, x_test), axis=0)
             y = np.concatenate((y_train, y_test), axis=0)
             test_size = len(test_labels)/(len(test_labels) + len(train_labels))
@@ -79,7 +93,11 @@ def run_classifier(data_dir, experiment_id, random_splits, num_runs, _log):
         model.fit(x_train, y_train)
 
         # Evaluate accuracy
+        y_pred = model.predict(x_train)
+        train_scores[i] = accuracy_score(y_train, y_pred) * 100
         y_pred = model.predict(x_test)
-        scores[i] = accuracy_score(y_test, y_pred) * 100
+        test_scores[i] = accuracy_score(y_test, y_pred) * 100
 
-    _log.info(f'Accuracy: {scores.mean():.2f} ± {scores.std():.2f}')
+    _log.info('Accuracy results')
+    _log.info(f'Train: {train_scores.mean():.2f} ± {train_scores.std():.2f}')
+    _log.info(f'Test: {test_scores.mean():.2f} ± {test_scores.std():.2f}')
