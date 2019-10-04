@@ -4,8 +4,7 @@ import pickle as pkl
 import numpy as np
 from argparse import ArgumentParser
 import netquery.utils as utils
-from netquery.bio.data_utils import load_graph
-from netquery.data_utils import load_queries_by_formula, load_test_queries_by_formula
+from netquery.data_utils import load_queries_by_formula, load_test_queries_by_formula, load_graph
 from netquery.model import RGCNEncoderDecoder, QueryEncoderDecoder
 from netquery.train_helpers import train_ingredient, run_train
 from sacred import Experiment

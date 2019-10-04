@@ -8,7 +8,7 @@ import os.path as osp
 import rdflib as rdf
 import pickle as pkl
 
-import netquery.bio.data_utils as utils
+import netquery.data_utils as utils
 
 ex = Experiment()
 
@@ -20,6 +20,8 @@ def config():
 
 
 class RDVPDataset(Entities):
+    """A wrapper around the Entities dataset that bypasses the process
+    method, used to download the datasets."""
     def __init__(self, root, name):
         assert name in ['AIFB', 'AM', 'MUTAG', 'BGS']
         self.name = name.lower()
