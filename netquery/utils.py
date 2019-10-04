@@ -49,14 +49,17 @@ def eval_auc_queries(test_queries, enc_dec, batch_size=128, hard_negatives=False
                 negatives = [random.choice(formula_queries[j].hard_neg_samples) for j in range(offset, max_index)]
             else:
                 lengths = [1 for j in range(offset, max_index)]
-                negatives = [random.choice(formula_queries[j].neg_samples) for j  in range(offset, max_index)]
+                negatives = [random.choice(formula_queries[j].neg_samples) for j in range(offset, max_index)]
             offset += batch_size
 
             formula_labels.extend([1 for _ in range(len(lengths))])
             formula_labels.extend([0 for _ in range(len(negatives))])
-            batch_scores = enc_dec.forward(formula, 
-                    batch_queries+[b for i, b in enumerate(batch_queries) for _ in range(lengths[i])], 
-                    [q.target_node for q in batch_queries] + negatives)
+
+            targets = [q.target_node for q in batch_queries]
+            batch_scores = enc_dec.forward(formula, batch_queries, targets,
+                                           neg_nodes=negatives,
+                                           neg_lengths=lengths)
+
             batch_scores = batch_scores.data.tolist()
             formula_predictions.extend(batch_scores)
         formula_aucs[formula] = roc_auc_score(formula_labels, np.nan_to_num(formula_predictions))
@@ -82,9 +85,11 @@ def eval_perc_queries(test_queries, enc_dec, batch_size=128, hard_negatives=Fals
                 negatives = [n for j in range(offset, max_index) for n in formula_queries[j].neg_samples]
             offset += batch_size
 
-            batch_scores = enc_dec.forward(formula, 
-                    batch_queries+[b for i, b in enumerate(batch_queries) for _ in range(lengths[i])], 
-                    [q.target_node for q in batch_queries] + negatives)
+            targets = [q.target_node for q in batch_queries]
+            batch_scores = enc_dec.forward(formula, batch_queries, targets,
+                                           neg_nodes=negatives,
+                                           neg_lengths=lengths)
+
             batch_scores = batch_scores.data.tolist()
             perc_scores.extend(_get_perc_scores(batch_scores, lengths))
     return np.mean(perc_scores)

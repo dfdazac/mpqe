@@ -365,7 +365,8 @@ class RGCNEncoderDecoder(nn.Module):
         return out
 
     def forward(self, formula, queries, target_nodes,
-                anchor_ids=None, var_ids=None, q_graphs=None):
+                anchor_ids=None, var_ids=None, q_graphs=None,
+                neg_nodes=None, neg_lengths=None):
 
         if anchor_ids is None or var_ids is None or q_graphs is None:
             query_data = RGCNQueryDataset.get_query_graph(formula, queries,
@@ -403,6 +404,14 @@ class RGCNEncoderDecoder(nn.Module):
 
         target_embeds = self.enc(target_nodes, formula.target_mode).t()
         scores = F.cosine_similarity(out, target_embeds, dim=1)
+
+        if neg_nodes is not None:
+            neg_embeds = self.enc(neg_nodes, formula.target_mode).t()
+            out = out.repeat_interleave(torch.tensor(neg_lengths).to(device),
+                                        dim=0)
+            neg_scores = F.cosine_similarity(out, neg_embeds)
+
+            scores = torch.cat((scores, neg_scores), dim=0)
 
         return scores
 
