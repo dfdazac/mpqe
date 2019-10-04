@@ -112,3 +112,8 @@ output/
 jobs/
 notebooks/
 *.nt
+
+AIFB/
+MUTAG/
+BGS/
+AM/
