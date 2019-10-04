@@ -497,7 +497,7 @@ class TargetMLPReadout(nn.Module):
                 **kwargs):
         device = embs.device
 
-        non_target_idx = torch.ones(num_nodes, dtype=torch.uint8)
+        non_target_idx = torch.ones(num_nodes, dtype=torch.bool)
         non_target_idx[num_anchors] = 0
         non_target_idx.to(device)
 
@@ -506,7 +506,7 @@ class TargetMLPReadout(nn.Module):
 
         embs = embs.reshape(batch_size, num_nodes, -1)
         non_targets = embs[:, non_target_idx]
-        targets = embs[:, 1 - non_target_idx].expand_as(non_targets)
+        targets = embs[:, ~non_target_idx].expand_as(non_targets)
 
         x = torch.cat((targets, non_targets), dim=-1)
         x = x.reshape(batch_size * (num_nodes - 1), -1).contiguous()
