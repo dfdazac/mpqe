@@ -67,7 +67,14 @@ class QueryEncoderDecoder(nn.Module):
         self.graph = graph
         self.cos = nn.CosineSimilarity(dim=0)
 
-    def forward(self, formula, queries, target_nodes):
+    def forward(self, formula, queries, target_nodes,
+                neg_nodes=None, neg_lengths=None):
+
+        if neg_nodes is not None:
+            target_nodes = target_nodes + neg_nodes
+            queries = queries + [b for i, b in enumerate(queries) for _ in
+                                 range(neg_lengths[i])]
+
         if formula.query_type == "1-chain" or formula.query_type == "2-chain" or formula.query_type == "3-chain":
             # a chain is simply a call to the path decoder
             return self.path_dec.forward(
