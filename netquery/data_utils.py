@@ -210,13 +210,6 @@ def sample_clean_test(graph_loader, data_dir):
     pickle.dump([q.serialize() for q in val_queries_3], open(data_dir + "/val_queries_3.pkl", "wb"), protocol=pickle.HIGHEST_PROTOCOL)
 
         
-def clean_test(train_queries, test_queries):
-    for query_type in train_queries:
-        train_set = set(train_queries[query_type])
-        test_queries[query_type] = [q for q in test_queries[query_type] if not q in train_set]
-    return test_queries
-
-
 def parallel_sample_worker(pid, num_samples, graph, data_dir, is_test, test_edges):
     if not is_test:
         graph.remove_edges([(q.target_node, q.formula.rels[0], q.anchor_nodes[0]) for q in test_edges])
