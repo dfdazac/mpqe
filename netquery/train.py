@@ -35,6 +35,7 @@ parser.add_argument("--dropout", type=float, default=0)
 parser.add_argument("--weight_decay", type=float, default=0)
 parser.add_argument("--num_bases", type=int, default=0)
 parser.add_argument("--scatter_op", type=str, default='add')
+parser.add_argument("--path_weight", type=float, default=0.01)
 args = parser.parse_args()
 
 print("Loading graph data..")
@@ -126,6 +127,7 @@ def config():
     scatter_op = args.scatter_op
     opt = args.opt
     data_dir = args.data_dir
+    path_weight = args.path_weight
 
 
 @ex.main
@@ -133,7 +135,7 @@ def main(data_dir, _run):
     run_train(enc_dec, optimizer, train_queries, val_queries, test_queries,
               logger, batch_size=args.batch_size, max_burn_in=args.max_burn_in,
               val_every=args.val_every, max_iter=args.max_iter,
-              model_file=model_file)
+              model_file=model_file, path_weight=args.path_weight)
 
     # Export embeddings for node classification
     entity_ids_path = osp.join(data_dir, 'entity_ids.pkl')

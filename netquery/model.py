@@ -358,6 +358,8 @@ class RGCNEncoderDecoder(nn.Module):
             self.readout = TargetMLPReadout(self.emb_dim, scatter_fn)
         elif readout == 'concat':
             self.readout = ConcatReadout(self.emb_dim, scatter_fn)
+        elif readout == 'mp':
+            self.readout = self.target_message_readout
         else:
             raise ValueError(f'Unknown readout function {readout}')
 
@@ -370,6 +372,19 @@ class RGCNEncoderDecoder(nn.Module):
     def max_readout(self, embs, batch_idx, **kwargs):
         out, argmax = scatter_max(embs, batch_idx, dim=0)
         return out
+
+    def target_message_readout(self, embs, batch_size, num_nodes, num_anchors,
+                               **kwargs):
+        device = embs.device
+
+        non_target_idx = torch.ones(num_nodes, dtype=torch.bool)
+        non_target_idx[num_anchors] = 0
+        non_target_idx.to(device)
+
+        embs = embs.reshape(batch_size, num_nodes, -1)
+        targets = embs[:, ~non_target_idx].reshape(batch_size, -1)
+
+        return targets
 
     def forward(self, formula, queries, target_nodes,
                 anchor_ids=None, var_ids=None, q_graphs=None,
@@ -396,18 +411,19 @@ class RGCNEncoderDecoder(nn.Module):
         x = x.reshape(-1, self.emb_dim)
         q_graphs.x = x
 
-        h1 = q_graphs.x
-        for i in range(self.num_passes):
-            h1 = F.relu(self.rgcn(h1, q_graphs.edge_index, q_graphs.edge_type))
-
-        if isinstance(self.readout, ConcatReadout):
-            h2 = F.relu(h1)
+        if self.readout == self.target_message_readout:
+            num_passes = n_nodes - 1
         else:
-            h2 = self.dropout(h1)
+            num_passes = self.num_passes
 
-        out = self.readout(embs=h2, batch_idx=q_graphs.batch,
+        h1 = q_graphs.x
+        for i in range(num_passes - 1):
+            h1 = F.relu(self.rgcn(h1, q_graphs.edge_index, q_graphs.edge_type))
+        h1 = self.rgcn(h1, q_graphs.edge_index, q_graphs.edge_type)
+
+        out = self.readout(embs=h1, batch_idx=q_graphs.batch,
                            batch_size=batch_size, num_nodes=n_nodes,
-                           num_anchors=n_anchors, prev_h=h1)
+                           num_anchors=n_anchors, prev_h=None)  # FIXME: prev_h
 
         target_embeds = self.enc(target_nodes, formula.target_mode).t()
         scores = F.cosine_similarity(out, target_embeds, dim=1)
