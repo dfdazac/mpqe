@@ -156,6 +156,9 @@ def main(data_dir, _run):
         np.save(emb_fname, embeddings)
         _run.add_artifact(emb_fname, emb_fname)
         os.remove(emb_fname)
+    else:
+        print('Did not find entity_ids dictionary. Files found:')
+        print(os.listdir(data_dir))
 
 
 ex.run()
