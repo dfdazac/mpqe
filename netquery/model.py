@@ -336,7 +336,8 @@ class RGCNEncoderDecoder(nn.Module):
                 self.rel_ids[rel] = id_rel
                 id_rel += 1
 
-        self.rgcn = RGCNConv(in_channels=self.emb_dim, out_channels=self.emb_dim,
+        self.rgcn = RGCNConv(in_channels=self.emb_dim,
+                             out_channels=self.emb_dim,
                              num_relations=len(graph.rel_edges), num_bases=0)
 
         if scatter_op == 'add':
@@ -348,16 +349,19 @@ class RGCNEncoderDecoder(nn.Module):
         else:
             raise ValueError(f'Unknown scatter op {scatter_op}')
 
+        self.readout_str = readout
+
         if readout == 'sum':
             self.readout = self.sum_readout
         elif readout == 'max':
             self.readout = self.max_readout
         elif readout == 'mlp':
-            self.readout = MLPReadout(self.emb_dim, scatter_fn)
+            self.readout = MLPReadout(self.emb_dim, self.emb_dim, scatter_fn)
         elif readout == 'targetmlp':
             self.readout = TargetMLPReadout(self.emb_dim, scatter_fn)
         elif readout == 'concat':
-            self.readout = ConcatReadout(self.emb_dim, scatter_fn)
+            self.readout = MLPReadout(self.emb_dim * num_passes, self.emb_dim,
+                                      scatter_fn)
         elif readout == 'mp':
             self.readout = self.target_message_readout
         else:
@@ -417,13 +421,21 @@ class RGCNEncoderDecoder(nn.Module):
             num_passes = self.num_passes
 
         h1 = q_graphs.x
+        h_layers = []
         for i in range(num_passes - 1):
             h1 = F.relu(self.rgcn(h1, q_graphs.edge_index, q_graphs.edge_type))
+            if self.readout_str == 'concat':
+                h_layers.append(h1)
+
         h1 = self.rgcn(h1, q_graphs.edge_index, q_graphs.edge_type)
+
+        if self.readout_str == 'concat':
+            h_layers.append(h1)
+            h1 = torch.cat(h_layers, dim=1)
 
         out = self.readout(embs=h1, batch_idx=q_graphs.batch,
                            batch_size=batch_size, num_nodes=n_nodes,
-                           num_anchors=n_anchors, prev_h=None)  # FIXME: prev_h
+                           num_anchors=n_anchors)
 
         target_embeds = self.enc(target_nodes, formula.target_mode).t()
         scores = F.cosine_similarity(out, target_embeds, dim=1)
@@ -472,13 +484,13 @@ class RGCNEncoderDecoder(nn.Module):
 
 
 class MLPReadout(nn.Module):
-    def __init__(self, dim, scatter_fn):
+    def __init__(self, input_dim, output_dim, scatter_fn):
         super(MLPReadout, self).__init__()
-        self.layers = nn.Sequential(nn.Linear(in_features=dim,
-                                              out_features=dim),
+        self.layers = nn.Sequential(nn.Linear(in_features=input_dim,
+                                              out_features=output_dim),
                                     nn.ReLU(),
-                                    nn.Linear(in_features=dim,
-                                              out_features=dim))
+                                    nn.Linear(in_features=output_dim,
+                                              out_features=output_dim))
         self.scatter_fn = scatter_fn
 
     def forward(self, embs, batch_idx, **kwargs):
@@ -490,20 +502,6 @@ class MLPReadout(nn.Module):
             x = x[0]
 
         return x
-
-
-class ConcatReadout(nn.Module):
-    def __init__(self, dim, scatter_fn):
-        super(ConcatReadout, self).__init__()
-        self.scatter_fn = scatter_fn
-        self.linear = nn.Linear(in_features=2*dim, out_features=dim)
-
-    def forward(self, embs, batch_idx, prev_h, **kwargs):
-        aggregate_1 = self.scatter_fn(prev_h, batch_idx, dim=0)
-        aggregate_2 = self.scatter_fn(embs, batch_idx, dim=0)
-        out = torch.cat((aggregate_1, aggregate_2), dim=-1)
-        out = self.linear(out)
-        return out
 
 
 class TargetMLPReadout(nn.Module):
