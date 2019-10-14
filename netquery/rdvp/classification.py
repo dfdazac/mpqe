@@ -13,8 +13,8 @@ ex = Experiment()
 # noinspection PyUnusedLocal
 @ex.config
 def config():
-    data_dir = 'AIFB'
-    experiment_id = '34'
+    data_dir = 'MUTAG'
+    experiment_id = '55'
     random_splits = False
     num_runs = 1
 
@@ -89,7 +89,7 @@ def run_classifier(data_dir, experiment_id, random_splits, num_runs, _log):
             x_test, y_test = x[test_idx], y[test_idx]
 
         # Train classifier
-        model = LogisticRegressionCV(cv=5, multi_class='auto', max_iter=300)
+        model = LogisticRegressionCV(cv=5, multi_class='auto', max_iter=500)
         model.fit(x_train, y_train)
 
         # Evaluate accuracy

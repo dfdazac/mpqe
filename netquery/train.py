@@ -151,11 +151,10 @@ def main(data_dir, _run):
                     emb = enc_dec.enc(id_tensor, mode).detach().cpu().numpy()
                     embeddings[i, 1:] = emb.reshape(-1)
 
-        # Save embeddings as artifact and remove from local storage
-        emb_fname = 'embeddings.npy'
-        np.save(emb_fname, embeddings)
-        _run.add_artifact(emb_fname, emb_fname)
-        os.remove(emb_fname)
+        exp_id = '-' + str(_run._id) if _run._id is not None else ''
+        path = osp.join(args.log_dir, 'artifacts' + exp_id, 'embeddings.npy')
+        np.save(path, embeddings)
+        print(f'Saved embeddings at {path}')
     else:
         print('Did not find entity_ids dictionary. Files found:')
         print(os.listdir(data_dir))
