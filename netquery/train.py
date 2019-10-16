@@ -17,7 +17,9 @@ parser.add_argument("--model", type=str, default="gqe")
 parser.add_argument("--embed_dim", type=int, default=128)
 parser.add_argument("--data_dir", type=str, default="./MUTAG/processed/")
 parser.add_argument("--lr", type=float, default=0.01)
-parser.add_argument("--num_passes", type=int, default=2)
+parser.add_argument("--num_layers", type=int, default=2)
+parser.add_argument("--shared_layers", type=bool, default=True)
+parser.add_argument("--adaptive", type=bool, default=True)
 parser.add_argument("--depth", type=int, default=0)
 parser.add_argument("--batch_size", type=int, default=512)
 parser.add_argument("--max_iter", type=int, default=10000000)
@@ -64,7 +66,8 @@ enc = utils.get_encoder(args.depth, graph, out_dims, feature_modules, args.cuda)
 if args.model == 'qrgcn':
     enc_dec = RGCNEncoderDecoder(graph, enc, args.readout, args.scatter_op,
                                  args.dropout, args.weight_decay,
-                                 args.num_passes)
+                                 args.num_layers, args.shared_layers,
+                                 args.adaptive)
 elif args.model == 'gqe':
     dec = utils.get_metapath_decoder(graph,
                                      enc.out_dims if args.depth > 0 else out_dims,
@@ -118,7 +121,9 @@ else:
 def config():
     model = args.model
     lr = args.lr
-    num_passes = args.num_passes
+    num_layers = args.num_layers
+    shared_layers = args.shared_layers
+    adaptive = args.adaptive
     readout = args.readout
     dropout = args.dropout
     weight_decay = args.weight_decay

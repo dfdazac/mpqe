@@ -311,16 +311,17 @@ class RGCNConv(MessagePassing):
 
 
 class RGCNEncoderDecoder(nn.Module):
-    def __init__(self, graph, enc, readout='sum',
+    def __init__(self, graph, enc, readout='mp',
                  scatter_op='add', dropout=0, weight_decay=1e-3,
-                 num_passes=2):
+                 num_layers=3, shared_layers=True, adaptive=True):
         super(RGCNEncoderDecoder, self).__init__()
         self.enc = enc
         self.graph = graph
         self.emb_dim = graph.feature_dims[next(iter(graph.feature_dims))]
         self.mode_embeddings = nn.Embedding(len(graph.mode_weights),
                                             self.emb_dim)
-        self.num_passes = num_passes
+        self.num_layers = num_layers
+        self.adaptive = adaptive
 
         self.mode_ids = {}
         mode_id = 0
@@ -336,9 +337,15 @@ class RGCNEncoderDecoder(nn.Module):
                 self.rel_ids[rel] = id_rel
                 id_rel += 1
 
-        self.rgcn = RGCNConv(in_channels=self.emb_dim,
-                             out_channels=self.emb_dim,
-                             num_relations=len(graph.rel_edges), num_bases=0)
+        self.layers = nn.ModuleList()
+        for i in range(num_layers):
+            if len(self.layers) == 0 or not shared_layers:
+                rgcn = RGCNConv(in_channels=self.emb_dim,
+                                out_channels=self.emb_dim,
+                                num_relations=len(graph.rel_edges),
+                                num_bases=0)
+
+            self.layers.append(rgcn)
 
         if scatter_op == 'add':
             scatter_fn = scatter_add
@@ -360,7 +367,7 @@ class RGCNEncoderDecoder(nn.Module):
         elif readout == 'targetmlp':
             self.readout = TargetMLPReadout(self.emb_dim, scatter_fn)
         elif readout == 'concat':
-            self.readout = MLPReadout(self.emb_dim * num_passes, self.emb_dim,
+            self.readout = MLPReadout(self.emb_dim * num_layers, self.emb_dim,
                                       scatter_fn)
         elif readout == 'mp':
             self.readout = self.target_message_readout
@@ -415,19 +422,23 @@ class RGCNEncoderDecoder(nn.Module):
         x = x.reshape(-1, self.emb_dim)
         q_graphs.x = x
 
-        if self.readout == self.target_message_readout:
+        if self.adaptive:
             num_passes = n_nodes - 1
+            if num_passes > len(self.layers):
+                raise ValueError(f'RGCN is adaptive with {self.layers} layers,'
+                                 f'but query requires {num_passes}.')
         else:
-            num_passes = self.num_passes
+            num_passes = self.num_layers
 
         h1 = q_graphs.x
         h_layers = []
         for i in range(num_passes - 1):
-            h1 = F.relu(self.rgcn(h1, q_graphs.edge_index, q_graphs.edge_type))
+            h1 = self.layers[i](h1, q_graphs.edge_index, q_graphs.edge_type)
+            h1 = F.relu(h1)
             if self.readout_str == 'concat':
                 h_layers.append(h1)
 
-        h1 = self.rgcn(h1, q_graphs.edge_index, q_graphs.edge_type)
+        h1 = self.layers[-1](h1, q_graphs.edge_index, q_graphs.edge_type)
 
         if self.readout_str == 'concat':
             h_layers.append(h1)
