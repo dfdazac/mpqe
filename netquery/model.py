@@ -425,8 +425,8 @@ class RGCNEncoderDecoder(nn.Module):
         if self.adaptive:
             num_passes = n_nodes - 1
             if num_passes > len(self.layers):
-                raise ValueError(f'RGCN is adaptive with {self.layers} layers,'
-                                 f'but query requires {num_passes}.')
+                raise ValueError(f'RGCN is adaptive with {len(self.layers)}'
+                                 f' layers, but query requires {num_passes}.')
         else:
             num_passes = self.num_layers
 

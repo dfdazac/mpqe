@@ -131,7 +131,7 @@ def run_train(model, optimizer, train_queries, val_queries, test_queries,
     v = run_eval(model, test_queries, i, logger)
     test_avg_auc = np.mean(list(v.values()))
     logger.info("Test macro-averaged val: {:f}".format(test_avg_auc))
-    _run.log_scalar('test_auc', test_avg_auc, 0)
+    _run.log_scalar('test_auc', test_avg_auc)
     logger.info("Improvement from edge conv: {:f}".format((np.mean(list(v.values()))-conv_test)/conv_test))
 
 
