@@ -13,10 +13,11 @@ ex = Experiment()
 # noinspection PyUnusedLocal
 @ex.config
 def config():
-    data_dir = 'MUTAG'
-    experiment_id = '55'
-    random_splits = False
-    num_runs = 1
+    data_dir = 'AIFB'
+    experiment_id = '100'
+    random_splits = True
+    num_runs = 10
+    test_size = None
 
 
 def make_train_test_data(embs, train_labels, test_labels):
@@ -58,9 +59,11 @@ def make_train_test_data(embs, train_labels, test_labels):
 
 
 @ex.automain
-def run_classifier(data_dir, experiment_id, random_splits, num_runs, _log):
+def run_classifier(data_dir, experiment_id, random_splits, num_runs, test_size,
+                   _log):
     """Train a node classifier, given pretrained node embeddings.
     Performance is reported with the accuracy score."""
+    _log.info(f'Loading embeddings for experiment {experiment_id}')
     data_dir = osp.join(data_dir, 'processed')
     embs_dir = osp.join(data_dir,
                         f'artifacts-{experiment_id}',
@@ -73,6 +76,8 @@ def run_classifier(data_dir, experiment_id, random_splits, num_runs, _log):
     x_train, y_train, x_test, y_test = make_train_test_data(embs,
                                                             train_labels,
                                                             test_labels)
+    if test_size is None:
+        test_size = len(test_labels)/(len(test_labels) + len(train_labels))
 
     test_scores = np.empty(num_runs)
     train_scores = np.empty(num_runs)
@@ -81,15 +86,15 @@ def run_classifier(data_dir, experiment_id, random_splits, num_runs, _log):
             # Merge existing splits and create new ones
             x = np.concatenate((x_train, x_test), axis=0)
             y = np.concatenate((y_train, y_test), axis=0)
-            test_size = len(test_labels)/(len(test_labels) + len(train_labels))
-            splitter = StratifiedShuffleSplit(n_splits=1, test_size=test_size)
-            train_idx, test_idx = next(splitter.split(x, y))
 
+            splitter = StratifiedShuffleSplit(n_splits=1, test_size=test_size,
+                                              random_state=0)
+            train_idx, test_idx = next(splitter.split(x, y))
             x_train, y_train = x[train_idx], y[train_idx]
             x_test, y_test = x[test_idx], y[test_idx]
 
         # Train classifier
-        model = LogisticRegressionCV(cv=5, multi_class='auto', max_iter=500)
+        model = LogisticRegressionCV(cv=5, multi_class='auto', max_iter=5000)
         model.fit(x_train, y_train)
 
         # Evaluate accuracy
