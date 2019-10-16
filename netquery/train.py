@@ -152,9 +152,11 @@ def main(data_dir, _run):
                     embeddings[i, 1:] = emb.reshape(-1)
 
         exp_id = '-' + str(_run._id) if _run._id is not None else ''
-        path = osp.join(args.log_dir, 'artifacts' + exp_id, 'embeddings.npy')
-        np.save(path, embeddings)
-        print(f'Saved embeddings at {path}')
+        folder_path = osp.join(args.log_dir, 'artifacts' + exp_id)
+        os.mkdir(folder_path)
+        file_path = osp.join(folder_path, 'embeddings.npy')
+        np.save(file_path, embeddings)
+        print(f'Saved embeddings at {file_path}')
     else:
         print('Did not find entity_ids dictionary. Files found:')
         print(os.listdir(data_dir))
