@@ -323,6 +323,14 @@ class RGCNQueryDataset(QueryDataset):
                           '3-chain_inter': [[0, 1, 3],
                                             [3, 3, 2]]}
 
+    query_diameters = {'1-chain': 1,
+                       '2-chain': 2,
+                       '3-chain': 3,
+                       '2-inter': 1,
+                       '3-inter': 1,
+                       '3-inter_chain': 2,
+                       '3-chain_inter': 2}
+
     query_edge_label_idx = {'1-chain': [0],
                             '2-chain': [1, 0],
                             '3-chain': [2, 1, 0],
