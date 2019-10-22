@@ -20,6 +20,7 @@ parser.add_argument("--lr", type=float, default=0.01)
 parser.add_argument("--num_layers", type=int, default=3)
 parser.add_argument("--shared_layers", default=False, action='store_true')
 parser.add_argument("--adaptive", default=False, action='store_true')
+parser.add_argument("--extra_entities", default=False, action='store_true')
 parser.add_argument("--depth", type=int, default=0)
 parser.add_argument("--batch_size", type=int, default=512)
 parser.add_argument("--max_iter", type=int, default=10000000)
@@ -134,14 +135,15 @@ def config():
     data_dir = args.data_dir
     path_weight = args.path_weight
     decoder = args.decoder
-
+    extra_entities = args.extra_entities
 
 @ex.main
 def main(data_dir, _run):
     run_train(enc_dec, optimizer, train_queries, val_queries, test_queries,
               logger, batch_size=args.batch_size, max_burn_in=args.max_burn_in,
               val_every=args.val_every, max_iter=args.max_iter,
-              model_file=model_file, path_weight=args.path_weight)
+              model_file=model_file, path_weight=args.path_weight,
+              extra_entities=args.extra_entities)
 
     # Export embeddings for node classification
     entity_ids_path = osp.join(data_dir, 'entity_ids.pkl')
