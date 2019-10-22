@@ -139,10 +139,15 @@ def config():
 
 @ex.main
 def main(data_dir, _run):
+    exp_id = '-' + str(_run._id) if _run._id is not None else ''
+    folder_path = osp.join(args.log_dir, 'artifacts' + exp_id)
+    os.mkdir(folder_path)
+    model_path = osp.join(folder_path, model_file)
+
     run_train(enc_dec, optimizer, train_queries, val_queries, test_queries,
               logger, batch_size=args.batch_size, max_burn_in=args.max_burn_in,
               val_every=args.val_every, max_iter=args.max_iter,
-              model_file=model_file, path_weight=args.path_weight,
+              model_file=model_path, path_weight=args.path_weight,
               extra_entities=args.extra_entities)
 
     # Export embeddings for node classification
@@ -159,9 +164,6 @@ def main(data_dir, _run):
                     emb = enc_dec.enc(id_tensor, mode).detach().cpu().numpy()
                     embeddings[i, 1:] = emb.reshape(-1)
 
-        exp_id = '-' + str(_run._id) if _run._id is not None else ''
-        folder_path = osp.join(args.log_dir, 'artifacts' + exp_id)
-        os.mkdir(folder_path)
         file_path = osp.join(folder_path, 'embeddings.npy')
         np.save(file_path, embeddings)
         print(f'Saved embeddings at {file_path}')
