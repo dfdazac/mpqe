@@ -423,7 +423,7 @@ class RGCNEncoderDecoder(nn.Module):
         q_graphs.x = x
 
         if self.adaptive:
-            num_passes = n_nodes - 1
+            num_passes = RGCNQueryDataset.query_diameters[formula.query_type]
             if num_passes > len(self.layers):
                 raise ValueError(f'RGCN is adaptive with {len(self.layers)}'
                                  f' layers, but query requires {num_passes}.')
@@ -571,7 +571,3 @@ def fn_test_readout(readout_class):
 
 def test_target_mlp():
     fn_test_readout(TargetMLPReadout)
-
-
-def test_concat_readout():
-    fn_test_readout(ConcatReadout)

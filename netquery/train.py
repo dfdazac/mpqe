@@ -17,7 +17,7 @@ parser.add_argument("--model", type=str, default="qrgcn")
 parser.add_argument("--embed_dim", type=int, default=128)
 parser.add_argument("--data_dir", type=str, default="./rdvp/AIFB/processed/")
 parser.add_argument("--lr", type=float, default=0.01)
-parser.add_argument("--num_layers", type=int, default=2)
+parser.add_argument("--num_layers", type=int, default=3)
 parser.add_argument("--shared_layers", default=False, action='store_true')
 parser.add_argument("--adaptive", default=False, action='store_true')
 parser.add_argument("--depth", type=int, default=0)
@@ -133,6 +133,7 @@ def config():
     opt = args.opt
     data_dir = args.data_dir
     path_weight = args.path_weight
+    decoder = args.decoder
 
 
 @ex.main
