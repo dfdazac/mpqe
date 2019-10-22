@@ -73,6 +73,13 @@ class Query():
         elif query_type == "3-chain_inter":
             self.formula = Formula(query_type, (query_graph[1][1], (query_graph[2][0][1], query_graph[2][1][1])))
             self.anchor_nodes = (query_graph[2][0][-1], query_graph[2][1][-1])
+
+        self.extra_entity = None
+        if query_type in ["2-chain", "3-chain"]:
+            self.extra_entity = query_graph[-1][0]
+        elif query_type in ["3-inter_chain", "3-chain_inter"]:
+            self.extra_entity = query_graph[-1][-1][0]
+
         self.target_node = query_graph[1][0]
         if keep_graph:
             self.query_graph = query_graph

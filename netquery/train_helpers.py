@@ -58,7 +58,7 @@ def run_eval(model, queries, iteration, logger, batch_size=128, by_type=False,
 def run_train(model, optimizer, train_queries, val_queries, test_queries,
               logger, max_burn_in=100000, batch_size=512, log_every=500,
               val_every=1000, tol=1e-6, max_iter=int(10e7), inter_weight=0.005,
-              path_weight=0.01, model_file=None, _run=None):
+              path_weight=0.01, extra_entities=True, model_file=None, _run=None):
     edge_conv = False
     ema_loss = None
     vals = []
@@ -69,7 +69,7 @@ def run_train(model, optimizer, train_queries, val_queries, test_queries,
         train_iterators = {}
         for query_type in train_queries:
             queries = train_queries[query_type]
-            train_iterators[query_type] = get_queries_iterator(queries, batch_size, model)
+            train_iterators[query_type] = get_queries_iterator(queries, batch_size, model, extra_entities)
 
     for i in range(max_iter):
         
