@@ -351,15 +351,19 @@ class RGCNQueryDataset(QueryDataset):
         super(RGCNQueryDataset, self).__init__(queries)
         self.mode_ids = enc_dec.mode_ids
         self.rel_ids = enc_dec.rel_ids
-        self.extra_entities = True
+        self.add_extra_entities = extra_entities
 
     def collate_fn(self, idx_list):
         formula, queries = super(RGCNQueryDataset, self).collate_fn(idx_list)
+        if self.add_extra_entities:
+            extra_entities = random.random() > 0.5
+        else:
+            extra_entities = False
         anchor_ids, var_ids, graph = RGCNQueryDataset.get_query_graph(formula,
                                                                       queries,
                                                                       self.rel_ids,
                                                                       self.mode_ids,
-                                                                      self.extra_entities)
+                                                                      extra_entities)
         return formula, queries, anchor_ids, var_ids, graph
 
     @staticmethod
@@ -377,10 +381,9 @@ class RGCNQueryDataset(QueryDataset):
         if extra_entities:
             if formula.query_type in ["2-chain", "3-chain", "3-inter_chain",
                                       "3-chain_inter"]:
-                if random.random() > 0.5:
-                    extra_ids = np.array([q.extra_entity for q in queries])
-                    extra_ids = extra_ids.reshape(-1, 1)
-                    anchor_ids = np.hstack((anchor_ids, extra_ids))
+                extra_ids = np.array([q.extra_entity for q in queries])
+                extra_ids = extra_ids.reshape(-1, 1)
+                anchor_ids = np.hstack((anchor_ids, extra_ids))
 
         # The rest of the rows contain generic mode embeddings for variables
         all_nodes = formula.get_nodes()

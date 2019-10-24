@@ -399,12 +399,13 @@ class RGCNEncoderDecoder(nn.Module):
 
     def forward(self, formula, queries, target_nodes,
                 anchor_ids=None, var_ids=None, q_graphs=None,
-                neg_nodes=None, neg_lengths=None):
+                neg_nodes=None, neg_lengths=None, extra_entities=False):
 
         if anchor_ids is None or var_ids is None or q_graphs is None:
             query_data = RGCNQueryDataset.get_query_graph(formula, queries,
                                                           self.rel_ids,
-                                                          self.mode_ids)
+                                                          self.mode_ids,
+                                                          extra_entities)
             anchor_ids, var_ids, q_graphs = query_data
 
         device = next(self.parameters()).device

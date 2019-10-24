@@ -97,14 +97,9 @@ log_file = (args.log_dir + fname + "log").format(
         decoder=args.decoder,
         model=args.model,
         readout=args.readout)
-model_file = (args.model_dir + fname + "pt").format(
-        data=args.data_dir.strip().split("/")[-1],
-        depth=args.depth,
-        embed_dim=args.embed_dim,
-        lr=args.lr,
-        decoder=args.decoder,
-        model=args.model,
-        readout=args.readout)
+
+model_file = "model.pt"
+
 logger = utils.setup_logging(log_file)
 
 ex = Experiment(ingredients=[train_ingredient])
@@ -140,7 +135,8 @@ def config():
 @ex.main
 def main(data_dir, _run):
     exp_id = '-' + str(_run._id) if _run._id is not None else ''
-    folder_path = osp.join(args.log_dir, 'artifacts' + exp_id)
+    db_name = database if database is not None else ''
+    folder_path = osp.join(args.log_dir, db_name, 'artifacts' + exp_id)
     os.mkdir(folder_path)
     model_path = osp.join(folder_path, model_file)
 
