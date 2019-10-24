@@ -13,8 +13,8 @@ ex = Experiment()
 # noinspection PyUnusedLocal
 @ex.config
 def config():
-    data_dir = 'AIFB'
-    experiment_id = '100'
+    data_dir = 'AM'
+    experiment_id = '120'
     random_splits = True
     num_runs = 10
     test_size = None
@@ -58,7 +58,7 @@ def make_train_test_data(embs, train_labels, test_labels):
     return x_train, y_train, x_test, y_test
 
 
-@ex.automain
+@ex.main
 def run_classifier(data_dir, experiment_id, random_splits, num_runs, test_size,
                    _log):
     """Train a node classifier, given pretrained node embeddings.
@@ -88,13 +88,13 @@ def run_classifier(data_dir, experiment_id, random_splits, num_runs, test_size,
             y = np.concatenate((y_train, y_test), axis=0)
 
             splitter = StratifiedShuffleSplit(n_splits=1, test_size=test_size,
-                                              random_state=0)
+                                              random_state=i)
             train_idx, test_idx = next(splitter.split(x, y))
             x_train, y_train = x[train_idx], y[train_idx]
             x_test, y_test = x[test_idx], y[test_idx]
 
         # Train classifier
-        model = LogisticRegressionCV(cv=5, multi_class='auto', max_iter=5000)
+        model = LogisticRegressionCV(cv=3, multi_class='auto', max_iter=5000)
         model.fit(x_train, y_train)
 
         # Evaluate accuracy
@@ -106,3 +106,7 @@ def run_classifier(data_dir, experiment_id, random_splits, num_runs, test_size,
     _log.info('Accuracy results')
     _log.info(f'Train: {train_scores.mean():.2f} ± {train_scores.std():.2f}')
     _log.info(f'Test: {test_scores.mean():.2f} ± {test_scores.std():.2f}')
+
+
+if __name__ == '__main__':
+    ex.run()
