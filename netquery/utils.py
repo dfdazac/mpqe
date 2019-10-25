@@ -31,7 +31,7 @@ def _get_perc_scores(scores, lengths):
         cum_sum += length
     return perc_scores
 
-def eval_auc_queries(test_queries, enc_dec, batch_size=128, hard_negatives=False, seed=0, extra_entities=False):
+def eval_auc_queries(test_queries, enc_dec, batch_size=128, hard_negatives=False, seed=0):
     predictions = []
     labels = []
     formula_aucs = {}
@@ -58,8 +58,7 @@ def eval_auc_queries(test_queries, enc_dec, batch_size=128, hard_negatives=False
             targets = [q.target_node for q in batch_queries]
             batch_scores = enc_dec.forward(formula, batch_queries, targets,
                                            neg_nodes=negatives,
-                                           neg_lengths=lengths,
-                                           extra_entities=extra_entities)
+                                           neg_lengths=lengths)
 
             batch_scores = batch_scores.data.tolist()
             formula_predictions.extend(batch_scores)
@@ -70,7 +69,7 @@ def eval_auc_queries(test_queries, enc_dec, batch_size=128, hard_negatives=False
     return overall_auc, formula_aucs
 
     
-def eval_perc_queries(test_queries, enc_dec, batch_size=128, hard_negatives=False, extra_entities=False):
+def eval_perc_queries(test_queries, enc_dec, batch_size=128, hard_negatives=False):
     perc_scores = []
     for formula in test_queries:
         formula_queries = test_queries[formula]
@@ -89,8 +88,7 @@ def eval_perc_queries(test_queries, enc_dec, batch_size=128, hard_negatives=Fals
             targets = [q.target_node for q in batch_queries]
             batch_scores = enc_dec.forward(formula, batch_queries, targets,
                                            neg_nodes=negatives,
-                                           neg_lengths=lengths,
-                                           extra_entities=extra_entities)
+                                           neg_lengths=lengths)
 
             batch_scores = batch_scores.data.tolist()
             perc_scores.extend(_get_perc_scores(batch_scores, lengths))

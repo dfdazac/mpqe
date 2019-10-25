@@ -27,21 +27,15 @@ def update_loss(loss, losses, ema_loss, ema_alpha=0.01):
 @train_ingredient.capture
 @torch.no_grad()
 def run_eval(model, queries, iteration, logger, batch_size=128, by_type=False,
-             extra_entities=False, _run=None):
+             _run=None):
     model.eval()
     vals = {}
     def _print_by_rel(rel_aucs, logger):
         for rels, auc in rel_aucs.items():
             logger.info(str(rels) + "\t" + str(auc))
     for query_type in queries["one_neg"]:
-        if extra_entities and query_type not in ["2-chain", "3-chain",
-                                                 "3-inter_chain",
-                                                 "3-chain_inter"]:
-            # Don't evaluate on queries without extra entities
-            continue
-
-        auc, rel_aucs = eval_auc_queries(queries["one_neg"][query_type], model, extra_entities=extra_entities)
-        perc = eval_perc_queries(queries["full_neg"][query_type], model, batch_size, extra_entities=extra_entities)
+        auc, rel_aucs = eval_auc_queries(queries["one_neg"][query_type], model)
+        perc = eval_perc_queries(queries["full_neg"][query_type], model, batch_size)
         vals[query_type] = auc
         logger.info("{:s} val AUC: {:f} val perc {:f}; iteration: {:d}".format(query_type, auc, perc, iteration))
         _run.log_scalar(f'{query_type}_val_auc', auc, iteration)
@@ -49,8 +43,8 @@ def run_eval(model, queries, iteration, logger, batch_size=128, by_type=False,
         if by_type:
             _print_by_rel(rel_aucs, logger)
         if "inter" in query_type:
-            auc, rel_aucs = eval_auc_queries(queries["one_neg"][query_type], model, hard_negatives=True, extra_entities=extra_entities)
-            perc = eval_perc_queries(queries["full_neg"][query_type], model, hard_negatives=True, extra_entities=extra_entities)
+            auc, rel_aucs = eval_auc_queries(queries["one_neg"][query_type], model, hard_negatives=True)
+            perc = eval_perc_queries(queries["full_neg"][query_type], model, hard_negatives=True)
             logger.info("Hard-{:s} val AUC: {:f} val perc {:f}; iteration: {:d}".format(query_type, auc, perc, iteration))
             _run.log_scalar(f'hard_{query_type}_val_auc', auc, iteration)
             _run.log_scalar(f'hard_{query_type}_val_perc', perc, iteration)
@@ -64,7 +58,7 @@ def run_eval(model, queries, iteration, logger, batch_size=128, by_type=False,
 def run_train(model, optimizer, train_queries, val_queries, test_queries,
               logger, max_burn_in=100000, batch_size=512, log_every=500,
               val_every=1000, tol=1e-6, max_iter=int(10e7), inter_weight=0.005,
-              path_weight=0.01, extra_entities=True, model_file=None, _run=None):
+              path_weight=0.01, model_file=None, _run=None):
     edge_conv = False
     ema_loss = None
     vals = []
@@ -75,7 +69,9 @@ def run_train(model, optimizer, train_queries, val_queries, test_queries,
         train_iterators = {}
         for query_type in train_queries:
             queries = train_queries[query_type]
-            train_iterators[query_type] = get_queries_iterator(queries, batch_size, model, extra_entities)
+            train_iterators[query_type] = get_queries_iterator(queries,
+                                                               batch_size,
+                                                               model)
 
     for i in range(max_iter):
         
@@ -139,12 +135,6 @@ def run_train(model, optimizer, train_queries, val_queries, test_queries,
     logger.info("Test macro-averaged val: {:f}".format(test_avg_auc))
     _run.log_scalar('test_auc', test_avg_auc)
     logger.info("Improvement from edge conv: {:f}".format((np.mean(list(v.values()))-conv_test)/conv_test))
-    logger.info("-"*50)
-    logger.info("Evaluating on queries with extra entities")
-    v = run_eval(model, test_queries, i, logger, extra_entities=True)
-    test_avg_auc = np.mean(list(v.values()))
-    logger.info("Test macro-averaged val: {:f}".format(test_avg_auc))
-
 
 
 def run_batch(train_queries, enc_dec, iter_count, batch_size, hard_negatives=False):

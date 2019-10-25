@@ -347,28 +347,21 @@ class RGCNQueryDataset(QueryDataset):
                          '3-chain_inter': [0, 2],
                          '3-inter_chain': [0, 3]}
 
-    def __init__(self, queries, enc_dec, extra_entities=True):
+    def __init__(self, queries, enc_dec):
         super(RGCNQueryDataset, self).__init__(queries)
         self.mode_ids = enc_dec.mode_ids
         self.rel_ids = enc_dec.rel_ids
-        self.add_extra_entities = extra_entities
 
     def collate_fn(self, idx_list):
         formula, queries = super(RGCNQueryDataset, self).collate_fn(idx_list)
-        if self.add_extra_entities:
-            extra_entities = random.random() > 0.5
-        else:
-            extra_entities = False
-        anchor_ids, var_ids, graph = RGCNQueryDataset.get_query_graph(formula,
-                                                                      queries,
-                                                                      self.rel_ids,
-                                                                      self.mode_ids,
-                                                                      extra_entities)
+        graph_data = RGCNQueryDataset.get_query_graph(formula, queries,
+                                                      self.rel_ids,
+                                                      self.mode_ids)
+        anchor_ids, var_ids, graph = graph_data
         return formula, queries, anchor_ids, var_ids, graph
 
     @staticmethod
-    def get_query_graph(formula, queries, rel_ids, mode_ids,
-                        extra_entities=False):
+    def get_query_graph(formula, queries, rel_ids, mode_ids):
         batch_size = len(queries)
         n_anchors = len(formula.anchor_modes)
 
@@ -377,13 +370,6 @@ class RGCNQueryDataset(QueryDataset):
         for i, anchor_mode in enumerate(formula.anchor_modes):
             anchors = [q.anchor_nodes[i] for q in queries]
             anchor_ids[:, i] = anchors
-
-        if extra_entities:
-            if formula.query_type in ["2-chain", "3-chain", "3-inter_chain",
-                                      "3-chain_inter"]:
-                extra_ids = np.array([q.extra_entity for q in queries])
-                extra_ids = extra_ids.reshape(-1, 1)
-                anchor_ids = np.hstack((anchor_ids, extra_ids))
 
         # The rest of the rows contain generic mode embeddings for variables
         all_nodes = formula.get_nodes()
@@ -419,9 +405,8 @@ def make_data_iterator(data_loader):
             continue
 
 
-def get_queries_iterator(queries, batch_size, enc_dec=None,
-                         extra_entities=True):
-    dataset = RGCNQueryDataset(queries, enc_dec, extra_entities)
+def get_queries_iterator(queries, batch_size, enc_dec=None):
+    dataset = RGCNQueryDataset(queries, enc_dec)
     loader = DataLoader(dataset, batch_size, shuffle=False,
                         collate_fn=dataset.collate_fn)
     return make_data_iterator(loader)

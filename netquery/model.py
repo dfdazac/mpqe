@@ -399,43 +399,26 @@ class RGCNEncoderDecoder(nn.Module):
 
     def forward(self, formula, queries, target_nodes,
                 anchor_ids=None, var_ids=None, q_graphs=None,
-                neg_nodes=None, neg_lengths=None, extra_entities=False):
+                neg_nodes=None, neg_lengths=None):
 
         if anchor_ids is None or var_ids is None or q_graphs is None:
             query_data = RGCNQueryDataset.get_query_graph(formula, queries,
                                                           self.rel_ids,
-                                                          self.mode_ids,
-                                                          extra_entities)
+                                                          self.mode_ids)
             anchor_ids, var_ids, q_graphs = query_data
 
         device = next(self.parameters()).device
         var_ids = var_ids.to(device)
         q_graphs = q_graphs.to(device)
 
-        batch_size, num_total_anchors = anchor_ids.shape
-        num_leaves = len(formula.anchor_modes)
+        batch_size, num_anchors = anchor_ids.shape
         n_vars = var_ids.shape[0]
-        n_nodes = num_leaves + n_vars
+        n_nodes = num_anchors + n_vars
 
         x = torch.empty(batch_size, n_nodes, self.emb_dim).to(var_ids.device)
         for i, anchor_mode in enumerate(formula.anchor_modes):
             x[:, i] = self.enc(anchor_ids[:, i], anchor_mode).t()
-        x[:, num_leaves:] = self.mode_embeddings(var_ids)
-
-        if num_total_anchors > num_leaves:
-            # Additional entities were passed
-            query_type = formula.query_type
-            extra_entity = anchor_ids[:, -1]
-            if query_type in ["2-chain", "3-chain"]:
-                extra_mode = formula.rels[-1][0]
-            elif query_type in ["3-inter_chain", "3-chain_inter"]:
-                extra_mode = formula.rels[-1][-1][0]
-            else:
-                raise ValueError(f"Query type {query_type} does not have "
-                                 f"extra entities")
-            # Replace mode embedding with entity embedding
-            x[:, -1] = self.enc(extra_entity, extra_mode).t()
-
+        x[:, num_anchors:] = self.mode_embeddings(var_ids)
         x = x.reshape(-1, self.emb_dim)
         q_graphs.x = x
 
@@ -463,7 +446,7 @@ class RGCNEncoderDecoder(nn.Module):
 
         out = self.readout(embs=h1, batch_idx=q_graphs.batch,
                            batch_size=batch_size, num_nodes=n_nodes,
-                           num_anchors=num_leaves)
+                           num_anchors=num_anchors)
 
         target_embeds = self.enc(target_nodes, formula.target_mode).t()
         scores = F.cosine_similarity(out, target_embeds, dim=1)
