@@ -91,7 +91,7 @@ def run_train(model, optimizer, train_queries, val_queries, test_queries,
             losses = []
             ema_loss = None
             vals = []
-            if not model_file is None:
+            if model_file is not None:
                 torch.save(model.state_dict(), model_file+"-edge_conv")
         
         if edge_conv:
@@ -135,6 +135,8 @@ def run_train(model, optimizer, train_queries, val_queries, test_queries,
     logger.info("Test macro-averaged val: {:f}".format(test_avg_auc))
     _run.log_scalar('test_auc', test_avg_auc)
     logger.info("Improvement from edge conv: {:f}".format((np.mean(list(v.values()))-conv_test)/conv_test))
+
+    torch.save(model.state_dict(), model_file)
 
 
 def run_batch(train_queries, enc_dec, iter_count, batch_size, hard_negatives=False):
