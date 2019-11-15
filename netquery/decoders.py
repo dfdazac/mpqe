@@ -193,7 +193,7 @@ class TransEMetapathDecoder(nn.Module):
             for r2 in relations[r1]:
                 rel = (r1, r2[1], r2[0])
                 self.vecs[rel] = nn.Parameter(torch.FloatTensor(dims[rel[0]]))
-                init.uniform(self.vecs[rel], a=-6.0/np.sqrt(dims[rel[0]]), b=6.0/np.sqrt(dims[rel[0]]))
+                init.uniform_(self.vecs[rel], a=-6.0/np.sqrt(dims[rel[0]]), b=6.0/np.sqrt(dims[rel[0]]))
                 self.register_parameter("_".join(rel), self.vecs[rel])
         self.cos = nn.CosineSimilarity(dim=0)
 
@@ -279,10 +279,10 @@ class SetIntersection(nn.Module):
         self.agg_func = agg_func
         for mode in mode_dims:
             self.pre_mats[mode] = nn.Parameter(torch.FloatTensor(expand_dims[mode], mode_dims[mode]))
-            init.xavier_uniform(self.pre_mats[mode])
+            init.xavier_uniform_(self.pre_mats[mode])
             self.register_parameter(mode+"_premat", self.pre_mats[mode])
             self.post_mats[mode] = nn.Parameter(torch.FloatTensor(mode_dims[mode], expand_dims[mode]))
-            init.xavier_uniform(self.post_mats[mode])
+            init.xavier_uniform_(self.post_mats[mode])
             self.register_parameter(mode+"_postmat", self.post_mats[mode])
 
     def forward(self, embeds1, embeds2, mode, embeds3 = []):
