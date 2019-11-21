@@ -21,4 +21,4 @@ Our proposal consists of replacing the sequential encoding of the query with a s
 
 ### Instructions
 
-Clone the repository and run python `-m netquery.bio.train_rgcn` to train an R-GCN query encoder with a sum aggregation function.
+Clone the repository and run python `-m netquery.train` to train MPQE with a sum aggregation function.
