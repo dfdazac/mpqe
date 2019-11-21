@@ -16,7 +16,7 @@ ex = Experiment()
 # noinspection PyUnusedLocal
 @ex.config
 def config():
-    name = 'AIFB'
+    name = 'Bio2'
 
 
 class RDVPDataset(Entities):
@@ -222,9 +222,9 @@ def preprocess_graph(name):
 def make_queries(name):
     data_dir = osp.join(name, 'processed')
     utils.make_train_test_edge_data(data_dir)
-    utils.make_train_test_query_data(data_dir)
-    utils.sample_new_clean(data_dir)
-    utils.clean_test(data_dir)
+    utils.make_train_queries(data_dir)
+    utils.make_test_queries(data_dir)
+    utils.clean_test_queries(data_dir)
     utils.discard_negatives(data_dir)
 
 

@@ -37,12 +37,12 @@ def load_graph(data_dir, embed_dim):
     return graph, feature_modules, node_maps
 
 
-def sample_new_clean(data_dir):
+def make_test_queries(data_dir):
     graph_loader = lambda : load_graph(data_dir, 10)[0]
     sample_clean_test(graph_loader, data_dir)
 
 
-def clean_test(data_dir):
+def clean_test_queries(data_dir):
     test_edges = pickle.load(open(osp.join(data_dir, 'test_edges.pkl'), "rb"))
     val_edges = pickle.load(open(osp.join(data_dir, 'val_edges.pkl'), "rb"))
     deleted_edges = set([q[0][1] for q in test_edges] + [_reverse_edge(q[0][1]) for q in test_edges] +
@@ -93,7 +93,6 @@ def make_train_test_edge_data(data_dir):
             non_neg_edges.add(e[1])
             print('Omitting edges of type', e[1])
 
-    val_test_edge_negsamples = [graph.get_negative_edge_samples(e, 100) for e in val_test_edges]
     print("Making and storing test queries.")
     val_test_edge_queries = [Query(("1-chain", val_test_edges[i]), val_test_edge_negsamples[i], None, 100, True) for i in range(len(val_test_edges))]
     val_split_point = int(0.1*len(val_test_edge_queries))
@@ -137,7 +136,8 @@ def print_query_stats(queries):
         print(f'\t{q_type}: {counts[q_type]}')
 
 
-def make_train_test_query_data(data_dir):
+def make_train_queries(data_dir):
+    print('Making training queries...')
     graph, _, _ = load_graph(data_dir, 10)
     num_samples = 1e6
     num_workers = cpu_count()
@@ -187,23 +187,37 @@ def load_test_queries_by_formula(data_file):
 
 
 def sample_clean_test(graph_loader, data_dir):
+    num_val = 1_000
+    num_test = 10_000
+
     train_graph = graph_loader()
     test_graph = graph_loader()
     test_edges = load_queries(data_dir + "/test_edges.pkl")
     val_edges = load_queries(data_dir + "/val_edges.pkl")
     train_graph.remove_edges([(q.target_node, q.formula.rels[0], q.anchor_nodes[0]) for q in test_edges+val_edges])
-    test_queries_2 = test_graph.sample_test_queries(train_graph, ["2-chain", "2-inter"], 9000, 1)
-    test_queries_2.extend(test_graph.sample_test_queries(train_graph, ["2-chain", "2-inter"], 1000, 1000))
-    val_queries_2 = test_graph.sample_test_queries(train_graph, ["2-chain", "2-inter"], 10, 900)
-    val_queries_2.extend(test_graph.sample_test_queries(train_graph, ["2-chain", "2-inter"], 100, 1000))
+    
+    print('Sampling test 2-queries')
+    test_queries_2 = test_graph.sample_test_queries(train_graph, ["2-chain", "2-inter"], 0.9 * num_test, 1)
+    test_queries_2.extend(test_graph.sample_test_queries(train_graph, ["2-chain", "2-inter"], 0.1 * num_test, 1000))
+
+    print('Sampling val 2-queries')
+    val_queries_2 = test_graph.sample_test_queries(train_graph, ["2-chain", "2-inter"], 0.9 * num_val, 1)
+    val_queries_2.extend(test_graph.sample_test_queries(train_graph, ["2-chain", "2-inter"], 0.1 * num_val, 1000))
+
     val_queries_2 = list(set(val_queries_2)-set(test_queries_2))
     print(len(val_queries_2))
-    test_queries_3 = test_graph.sample_test_queries(train_graph, ["3-chain", "3-inter", "3-inter_chain", "3-chain_inter"], 9000, 1)
-    test_queries_3.extend(test_graph.sample_test_queries(train_graph, ["3-chain", "3-inter", "3-inter_chain", "3-chain_inter"], 1000, 1000))
-    val_queries_3 = test_graph.sample_test_queries(train_graph, ["3-chain", "3-inter", "3-inter_chain", "3-chain_inter"], 900, 1)
-    val_queries_3.extend(test_graph.sample_test_queries(train_graph, ["3-chain", "3-inter", "3-inter_chain", "3-chain_inter"], 100, 1000))
+    
+    print('Sampling test 3-queries')
+    test_queries_3 = test_graph.sample_test_queries(train_graph, ["3-chain", "3-inter", "3-inter_chain", "3-chain_inter"], 0.9 * num_test, 1)
+    test_queries_3.extend(test_graph.sample_test_queries(train_graph, ["3-chain", "3-inter", "3-inter_chain", "3-chain_inter"], 0.1 * num_test, 1000))
+
+    print('Sampling val 3-queries')
+    val_queries_3 = test_graph.sample_test_queries(train_graph, ["3-chain", "3-inter", "3-inter_chain", "3-chain_inter"], 0.9 * num_val, 1)
+    val_queries_3.extend(test_graph.sample_test_queries(train_graph, ["3-chain", "3-inter", "3-inter_chain", "3-chain_inter"], 0.1 * num_val, 1000))
+
     val_queries_3 = list(set(val_queries_3)-set(test_queries_3))
     print(len(val_queries_3))
+
     pickle.dump([q.serialize() for q in test_queries_2], open(data_dir + "/test_queries_2.pkl", "wb"), protocol=pickle.HIGHEST_PROTOCOL)
     pickle.dump([q.serialize() for q in test_queries_3], open(data_dir + "/test_queries_3.pkl", "wb"), protocol=pickle.HIGHEST_PROTOCOL)
     pickle.dump([q.serialize() for q in val_queries_2], open(data_dir + "/val_queries_2.pkl", "wb"), protocol=pickle.HIGHEST_PROTOCOL)
