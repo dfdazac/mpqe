@@ -1,6 +1,6 @@
-## Encoding logical queries with R-GCNs
+## Message Passing Query Embedding
 
-This repository contains the implementation of Message Passing Query Embedding (MPQE), a method to answer complext queries over knowledge graphs using embeddings. 
+This repository contains the implementation of MPQE, a method to answer complex queries over knowledge graphs using embeddings. 
 
 <div align="center">
 <img src='img/qrgcn.png'>
