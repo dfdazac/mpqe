@@ -1,4 +1,4 @@
-import netquery.data_utils as utils
+import mpqe.data_utils as utils
 
 # Make training data for Bio
 utils.make_train_test_edge_data("/dfs/scratch0/nqe-bio/")

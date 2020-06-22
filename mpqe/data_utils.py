@@ -12,7 +12,7 @@ import os.path as osp
 import random
 import os
 
-from netquery.graph import Graph, Query, _reverse_edge
+from mpqe.graph import Graph, Query, _reverse_edge
 
 
 def load_graph(data_dir, embed_dim):

@@ -2,8 +2,8 @@ import torch
 import torch.nn as nn
 
 import random
-from netquery.graph import _reverse_relation
-from netquery.data_utils import RGCNQueryDataset
+from mpqe.graph import _reverse_relation
+from mpqe.data_utils import RGCNQueryDataset
 
 EPS = 10e-6
 

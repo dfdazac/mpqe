@@ -3,10 +3,10 @@ import os.path as osp
 import pickle as pkl
 import numpy as np
 from argparse import ArgumentParser
-import netquery.utils as utils
-from netquery.data_utils import load_queries_by_formula, load_test_queries_by_formula, load_graph
-from netquery.model import RGCNEncoderDecoder, QueryEncoderDecoder
-from netquery.train_helpers import train_ingredient, run_train
+import mpqe.utils as utils
+from mpqe.data_utils import load_queries_by_formula, load_test_queries_by_formula, load_graph
+from mpqe.model import RGCNEncoderDecoder, QueryEncoderDecoder
+from mpqe.train_helpers import train_ingredient, run_train
 from sacred import Experiment
 from sacred.observers import MongoObserver
 import torch
@@ -134,8 +134,9 @@ def config():
 def main(data_dir, _run):
     exp_id = '-' + str(_run._id) if _run._id is not None else ''
     db_name = database if database is not None else ''
-    folder_path = osp.join(args.log_dir, db_name, 'artifacts' + exp_id)
-    os.mkdir(folder_path)
+    folder_path = osp.join(args.log_dir, db_name, 'output' + exp_id)
+    if not osp.exists(folder_path):
+        os.mkdir(folder_path)
     model_path = osp.join(folder_path, model_file)
 
     run_train(enc_dec, optimizer, train_queries, val_queries, test_queries,

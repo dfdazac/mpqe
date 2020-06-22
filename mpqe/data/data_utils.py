@@ -8,7 +8,7 @@ import os.path as osp
 import rdflib as rdf
 import pickle as pkl
 
-import netquery.data_utils as utils
+import mpqe.data_utils as utils
 
 ex = Experiment()
 
