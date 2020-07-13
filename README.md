@@ -71,7 +71,7 @@ Please use the following entry to cite our work:
 @inproceedings{daza2020message,
     title={Message Passing Query Embedding},
     url = {https://arxiv.org/abs/2002.02406},
-    booktitle = {{ICML Workshop - Graph Representation Learning and Beyond)}},
+    booktitle = {{ICML Workshop - Graph Representation Learning and Beyond}},
     author={Daza, Daniel and Cochez, Michael},
     year = {2020},
     arxiv = {2002.02406}
