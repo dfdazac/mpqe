@@ -63,3 +63,17 @@ For MPQE-max and MPQE-CMPL, replace `'sum'` in the previous command with `'max'`
 
 Using a GTX 1080 Ti NVIDIA GPU, training the models takes around 3 to 6 hours.
 
+### Citation
+
+Please use the following entry to cite our work:
+
+```
+@inproceedings{daza2020message,
+    title={Message Passing Query Embedding},
+    url = {https://arxiv.org/abs/2002.02406},
+    booktitle = {{ICML Workshop - Graph Representation Learning and Beyond)}},
+   author={Daza, Daniel and Cochez, Michael},,
+    year = {2020},
+   arxiv = {2002.02406}
+}
+```
